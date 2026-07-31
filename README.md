@@ -1,90 +1,77 @@
-# SURVIVAL — Space Station Omega
+# SURVIVAL — Moon Survival
 
-A faithful browser-based recreation of the classic 1980s BASIC text adventure *Survival*, modernised as a clean HTML5/JavaScript game while preserving the original gameplay feel and mechanics.
+A browser recreation of the 1980s BASIC text adventure *Survival* (Moon Survival),
+written by Stewart Rush, 3/12/81. The world data (map, items, timings) follows the
+original BASIC listings in `docs/`; the room descriptions use the longer prose of
+the Big Computer Games listing.
 
 ---
 
 ## How to Run
 
-Open `index.html` in any modern web browser. No build step, no server, no dependencies required — everything runs client-side.
+Open `index.html` in any modern browser. No build step, no server, no dependencies.
 
 ```
 index.html   ← open this in your browser
 style.css    ← loaded automatically
-gameData.js  ← loaded automatically
-game.js      ← loaded automatically
+gameData.js  ← loaded automatically (all static world data)
+game.js      ← loaded automatically (engine and parser)
 ```
 
 ---
 
-## What is this?
+## The Game
 
-The original *Survival* was a BASIC text adventure published in a 1980s computing magazine. It featured:
+You have crash landed on the moon. You have 400 minutes (80 turns, 5 minutes each)
+to repair and refuel your spacecraft and blast off. Along the way you must survive
+a meteor shower, a locked ventilator shed, an unlit shaft, a security robot, a
+laser beam, and a nuclear bomb that detonates after 350 minutes.
 
-- A sci-fi space-station setting
-- Resource management (oxygen, power)
-- A patrolling security robot
-- Dark rooms requiring a flashlight
-- A transporter system
-- A bomb/deactivator puzzle
-- Classic verb-noun text parser
+There are 42 locations: the lunar surface (1–17), the wrecked spacecraft (18–21),
+the ventilator shed and shaft (22–24) and the underground space station (25–42).
 
-This repository contains a ground-up HTML5/JavaScript recreation that:
-- Preserves the original story, map, items, puzzles, and commands
-- Separates game data from game logic for maintainability
-- Adds a polished DOS-inspired UI with direction buttons, inventory panel, and HUD
-- Implements approved gameplay improvements (see below)
+### Resources
 
----
-
-## How to Play
-
-Type commands into the input box, or use the direction buttons and quick-action buttons in the sidebar.
+| Resource | Notes |
+|---|---|
+| Time | 5 minutes per turn; 400 minutes total |
+| Oxygen | Only drains while the oxygen module is carried. Required on the surface, and everywhere once the station air seal is blown |
+| Power | The power unit (or the spare power pack) must be carried on the surface and inside the ship, otherwise you freeze |
+| Inventory | 4 items maximum, and only one power supply at a time |
 
 ### Commands
 
 | Command | Effect |
 |---|---|
-| `N` / `NORTH` | Move north |
-| `S` / `SOUTH` | Move south |
-| `E` / `EAST`  | Move east |
-| `W` / `WEST`  | Move west |
-| `LOOK` / `L`  | Describe current room |
-| `EXAMINE <item>` / `X <item>` | Examine an item |
-| `GET <item>` / `TAKE <item>` | Pick up an item |
-| `DROP <item>` | Drop an item |
-| `USE <item>` | Use an item |
-| `INVENTORY` / `I` | List carried items |
-| `HELP` / `?` | Show help |
-| `RESTART` | Start a new game |
+| `N` `S` `E` `W` `U` `D` (or `NORTH`, `SOUTH`, …) | Move |
+| `LOOK` / `DESCRIBE` / `WAIT` | Re-describe the location — costs a turn, like the BASIC |
+| `GET` / `TAKE` / `KEEP` `<item>` | Pick up an item |
+| `DROP` / `LEAVE` / `PUT` `<item>` | Drop an item |
+| `INVENTORY` | List carried items |
+| `USE` / `TRY` `<item>` | Answer to an obstacle (meteor shower, locked shed, dark shaft, laser) |
+| `DIG` | Dig in soft surface (Burg Crater) |
+| `FUEL` | Load dilithium crystals in the ship's fuel store |
+| `READ COMPUTER` | Read the station computer terminal |
+| `TRANSPORT` | Beam between the transporter room and the transporter unit |
+| `DEACTIVATE` | Disarm the nuclear bomb (deactivator required) |
+| `BLAST` | Blast off from the ship's control room |
+| `QUIT` / `END` | End the session |
+
+Commands may be abbreviated to their first three letters.
 
 ### Tips
 
-- Watch your **O₂** (oxygen) level — it drops every turn. Find tanks to extend it.
-- **Dark areas** require the flashlight to explore safely.
-- The **security robot** is dangerous. Carry your security badge to pass safely.
-- The **bomb** must be deactivated before the escape pod will launch.
-- The **transporter** requires station power to be restored and an authorization keycard.
-
----
-
-## Map Overview
-
-```
-[25:OXYGEN BAY]─── [05:W CORR] ─── [01:COMMAND CTR] ─── [03:E CORR] ─── [08:MED BAY]
-                        │                 │    │                │               │
-                   [13:STOR A]       [02:N CORR] [04:S CORR] [09:LAB]      [14:STOR B]
-                   │   │                 │         │    │       │
-              [12:COMP][14]          [06:AIRLOCK] [10:ENG][11:POWER][22:DEACT]
-                             │        │    │         │
-                          [07:OUTER] [21:TRANS]   [17:ROBOT ZONE]─[16:DARK]─[15:DARK]
-                                                     │
-                                                  [18:BASE EXT]
-                                                     │
-                                                  [19:BASE ENTRY]
-                                                     │
-                                                  [20:CTRL ROOM]──[23:ESC CORR]──[24:PODS]
-```
+- Drop the oxygen module while you are inside the ship or the station: it only
+  drains while it is carried.
+- The overlook at Posidonius will make you lose the illuminator — leave it
+  elsewhere before going there.
+- The hangar is safe when it is entered through its air lock (changing area →
+  air lock → hangar). Walking into it straight from the corridor blows the
+  station air seal, and from then on oxygen is needed everywhere.
+- The security robot only starts its patrol after it has seen you in the mess
+  hall. Carry the coded badge or it will fire on you. Once the robot reaches the
+  station control center, the corridor north of the elevator opens up.
+- The bomb deactivator only appears (east of Mare Serenitatis) after 200 minutes.
 
 ---
 
@@ -92,73 +79,38 @@ Type commands into the input box, or use the direction buttons and quick-action 
 
 | File | Purpose |
 |---|---|
-| `index.html` | Shell — UI structure only, no logic |
-| `style.css` | DOS-inspired terminal styling |
-| `gameData.js` | All static data: rooms, items, messages, config |
-| `game.js` | Engine: state, parser, command handlers, UI updates |
+| `index.html` | UI structure only, no logic |
+| `style.css` | Terminal styling |
+| `gameData.js` | Static data: descriptions, movement matrix, item locations, name tables |
+| `game.js` | Engine: state, turn loop, parser, command handlers, UI updates |
 
-### `gameData.js`
-- `GAME_CONFIG` — tunable constants (oxygen, power, inventory limit, robot warnings)
-- `ROOMS` — 25 rooms with descriptions, exits, item lists, flags (`dark`, `robotPatrol`, `special`)
-- `ITEMS` — 12 portable items with keywords, descriptions, and `useEffect` tags
-- `MESSAGES` — all player-facing text strings (win, death, warnings, etc.)
-- `DIR_ALIASES` / `DIR_DISPLAY` / `DIR_OPPOSITE` — direction normalisation tables
+`gameData.js` mirrors the BASIC DATA statements:
 
-### `game.js`
-- `GameState` — single mutable object; reset on restart
-- `parseInput()` — tokeniser; maps verb → command function
-- `cmdGo()` — movement with dark-room safety logic
-- `cmdGet()` / `cmdDrop()` — item transfer (room ↔ inventory)
-- `cmdUse()` — dispatches on `item.useEffect` tag
-- `cmdActivateEscapePod()` / `cmdActivateTransporter()` / `cmdDeactivateBomb()` — special interactions
-- `processRobot()` — two-turn warning system before robot kills
-- `tickResources()` — decrement oxygen/power, check death conditions
-- `onTurnEnd()` — called after every turn-consuming action
-- `update*()` — DOM helpers for HUD, direction buttons, inventory, room items
-- `initQuickActions()` / `showItemPicker()` — quick-action button logic
+- `T` — the 60 description lines (`T$` in the BASIC)
+- `M_INIT` — the 42×8 movement matrix: `[N, S, E, W, U, D, firstTextLine, lastTextLine]`
+  where `0` = no exit and `99` = a fatal drop
+- `O_INIT` — the 14 object locations (`99` = carried, `0` = not yet on the map)
+- `ITEM_NAME`, `ITEM_KEYS`, `LOC_NAME` — display and parser tables
 
 ---
 
-## Known OCR Issues and Reconstructed Assumptions
+## Corrections applied to the OCR'd BASIC
 
-The following assumptions were made where the original BASIC source or magazine text was ambiguous or corrupted:
+The data was cross-checked line by line against
+`docs/Survival BASIC - Magazine BASIC.txt` (whose DATA statements are known good)
+and `docs/Survival BASIC Code - Big Computer Games Version.txt`.
 
-| # | Issue | Assumption Made |
+| # | Problem | Fix |
 |---|---|---|
-| 1 | Exact starting oxygen value | Set to 80–100 range; raised to 120 per approved adjustment |
-| 2 | Exact starting power value | Set to 60–80 range; raised to 100 per approved adjustment |
-| 3 | Original inventory limit | Assumed 5 slots; raised to 6 per approved adjustment |
-| 4 | Transporter destination | Original BASIC destination unclear; set to Room 19 (Robot Base Entry) as most logical shortcut |
-| 5 | Bomb timer vs. escape condition | Original unclear; implemented as a win-condition requirement (must defuse) rather than a countdown |
-| 6 | Robot patrol rooms | Rooms 17 and 18 flagged as patrol rooms based on narrative context |
-| 7 | Dark room contents | Keycard placed in Room 16 (Dark Chamber) as a reward for exploring dark areas |
-| 8 | Power cell location | Storage Room A; consistent with engineering-supply context |
-
----
-
-## Intentional Gameplay Improvements
-
-These improvements were explicitly approved before implementation:
-
-1. **Dark-room safety fix** — The player always knows which direction they entered a dark room from, and can safely retrace that step. Only other directions are blocked in darkness (no unfair trapping).
-
-2. **Robot encounter fairness** — The robot gives two turns of escalating warning before killing the player. The player has time to retreat or equip their badge.
-
-3. **Consistent room exits** — All exits are reciprocal. Robot base interior rooms (17–20) have corrected east/west/north/south links that match the intended map layout.
-
-4. **Raised starting resources** — Oxygen increased from ~80–100 to 120; power increased from ~60–80 to 100. The game remains challenging but reduces early frustration.
-
-5. **Increased inventory capacity** — Limit raised from 5 to 6 slots, giving slightly more flexibility without removing the strategic weight of item management.
-
----
-
-## Original vs. Modern
-
-| Aspect | Original BASIC | This Recreation |
-|---|---|---|
-| Platform | 8-bit home computer (BASIC) | Any modern browser |
-| Parser | Line-number GOTO chains | Structured verb-noun parser |
-| Data | Embedded in code (DATA lines) | Separate `gameData.js` |
-| UI | Terminal text only | Transcript + direction pad + HUD |
-| Bugs | Dark room trapping, instant robot death | Fixed per approved list |
-| Maintainability | BASIC spaghetti | Documented, modular JS |
+| 1 | Description line 33 ("At the center of Mare Imbrium.") was missing from the text table | Restored, which realigns every description from 33 onward. Locations 16–21 (the mare, the ship air lock, the cargo hold, the engine room and the control room) had been showing each other's text |
+| 2 | Location 29 (corridor) led *south to the infirmary* | Corrected to the hangar (magazine listing line 5890). This restores the route to the bomb and the blown-seal event |
+| 3 | Location short names for 11–13 and 16–21 named the wrong rooms | Renamed to match the descriptions |
+| 4 | Oxygen was required in the ship's air lock | Oxygen is required below location 18 only (BASIC line 820), plus the hangar rule below |
+| 5 | The hangar always required oxygen, and the seal could blow when arriving from the air lock | Reimplemented BASIC lines 830/1700/3590: the hangar holds air when entered from the air lock, and only an entry from corridor 29 blows the seal |
+| 6 | Running out of power killed the player everywhere | Only fatal below location 22 or once the seal is blown (BASIC line 3680) |
+| 7 | A power supply drained to exactly zero, which made the game unwinnable | Drain stops at a 5-unit reserve, as in the magazine listing (lines 690/700) |
+| 8 | Exposing the deactivator did not shorten the "total darkness" descriptions | Reimplemented BASIC lines 3760/3770 |
+| 9 | `LOOK` did not cost a turn, so a player standing at the dark area east of Mare Serenitatis could never wait for the deactivator and was stuck forever | `LOOK`/`DESCRIBE`/`WAIT` advance a turn as in the BASIC (line 650) |
+| 10 | A failed attempt at the locked shed left the game stuck in "obstacle" mode | An obstacle now always resolves after one attempt; the shed simply stays locked |
+| 11 | `TRANSPORT` only worked from the transporter room | Works in both directions (BASIC lines 1750–1820) |
+| 12 | `DEACTIVATE` moved the bomb into the inventory and could exceed the carry limit | The bomb may be carried or simply present; it is left where it is |

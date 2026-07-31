@@ -5,27 +5,31 @@
  * All static world data lives here; game logic is in game.js.
  *
  * ── OCR / Bug fixes applied ──────────────────────────────────────────────────
+ *  Data verified against docs/Survival BASIC - Magazine BASIC.txt (the version
+ *  whose DATA statements are known good) and the Big Computer Games listing.
+ *
  *  1. f9 initial = 0 (BASIC OCR had 8; caused instant station death)
  *  2. o(9) fuel-loaded sentinel = 98 (OCR had 984)
  *  3. Drop-item bug: checked o(1) instead of o(i)
- *  4. Bomb deactivation: checks o(7)==current location (not o(7)==99 carry)
- *  5. Movement matrix loc 21 T=36-37 (OCR had 37-38)
- *  6. Movement matrix locs 22-42 T-values shifted by +1 in OCR; corrected -1
- *  7. Movement matrix loc 32 T2 = 47 (OCR had 40, corrupted)
- *  8. Movement matrix loc 29 S=38 (reciprocal of loc 38 N=29; enables blown-seal)
- *  9. Movement matrix loc 2 T=4-5 (2-line description; "darkness" line belongs to loc 3)
- * 10. Movement matrix loc 3 T=6-7 (2-line: "There is total darkness…/between the craters")
- * 11. Self-loop exits (e.g. loc 16 S=16) treated as 0 (no exit)
- * 12. Expose-deactivator routine: adds o[6]=14 (missing from OCR)
- * 13. Bomb detonation at t1>350 (BASIC section was empty/corrupted)
- * 14. Robot patrol: stops at loc 35 (unchanged from original)
- * 15. Various OCR typos in text strings corrected
+ *  4. Text line 33 ("At the center of Mare Imbrium.") had been dropped from the
+ *     description table, which shifted every description from 33 on by one and
+ *     made locations 16-21 (mare, ship air lock, cargo, engine, control room)
+ *     print the wrong room text
+ *  5. Movement matrix loc 29 S = 38 (the hanger). The Big Computer Games OCR
+ *     had 30 (the infirmary), which broke the hanger/air-lock routes and the
+ *     blown-seal event. Magazine listing line 5890 confirms 38.
+ *  6. Location short names for 11-13 and 16-21 corrected to match the rooms
+ *  7. needsOxygen() = p < 18 (BASIC line 820); the hanger is handled by the
+ *     air-lock rule in game.js (BASIC lines 830/1700)
+ *  8. Expose-deactivator routine places o[6] at loc 14 (missing from OCR)
+ *  9. Bomb detonation at t1 > 350 (BASIC section was empty/corrupted)
+ * 10. Various OCR typos in text strings corrected
  */
 
 'use strict';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TEXT DESCRIPTIONS  (t$[1..59]; index 0 and 60 are unused placeholders)
+// TEXT DESCRIPTIONS  (t$[1..60]; index 0 and 61 are unused placeholders)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const T = [
@@ -62,34 +66,35 @@ const T = [
   /* 30 */ 'There is total darkness.',
   /* 31 */ 'At the crash site of a spacecraft.',
   /* 32 */ 'The ship entrance is before you.',
-  /* 33 */ 'In the air lock chamber of the ship.',
-  /* 34 */ 'In the aft cargo and fuel storage room.',
-  /* 35 */ 'In the engine room of the spacecraft.',
-  /* 36 */ "In the control room. The ship's console",
-  /* 37 */ 'is before you.',
-  /* 38 */ 'Inside a dark shed. A ladder leads down',
-  /* 39 */ 'into a large metal shaft.',
-  /* 40 */ 'In a ventilator passage.',
-  /* 41 */ 'At a ventilator opening. Through the',
-  /* 42 */ 'opening a lit passageway can be seen.',
-  /* 43 */ 'In a lighted space station corridor.',
-  /* 44 */ 'In the space station infirmary.',
-  /* 45 */ 'In the recreation room and library.',
-  /* 46 */ 'In the mess hall. Abandoned food trays',
-  /* 47 */ 'are still on the tables.',
-  /* 48 */ 'In the storage room and supply area.',
-  /* 49 */ 'In the sleeping quarters.',
-  /* 50 */ 'In an elevator at subsurface level.',
-  /* 51 */ 'In an elevator at surface level.',
-  /* 52 */ 'In the station control center.',
-  /* 53 */ 'In the transporter room.',
-  /* 54 */ 'In the space station laboratory.',
-  /* 55 */ 'In the hanger area. The launch area',
-  /* 56 */ 'is just to the south.',
-  /* 57 */ 'In an air lock chamber between the',
-  /* 58 */ 'changing area and the hanger.',
-  /* 59 */ 'In a space suit changing area.',
-  '',  // [60] unused placeholder
+  /* 33 */ 'At the center of Mare Imbrium.',
+  /* 34 */ 'In the air lock chamber of the ship.',
+  /* 35 */ 'In the aft cargo and fuel storage room.',
+  /* 36 */ 'In the engine room of the spacecraft.',
+  /* 37 */ "In the control room. The ship's console",
+  /* 38 */ 'is before you.',
+  /* 39 */ 'Inside a dark shed. A ladder leads down',
+  /* 40 */ 'into a large metal shaft.',
+  /* 41 */ 'In a ventilator passage.',
+  /* 42 */ 'At a ventilator opening. Through the',
+  /* 43 */ 'opening a lit passageway can be seen.',
+  /* 44 */ 'In a lighted space station corridor.',
+  /* 45 */ 'In the space station infirmary.',
+  /* 46 */ 'In the recreation room and library.',
+  /* 47 */ 'In the mess hall. Abandoned food trays',
+  /* 48 */ 'are still on the tables.',
+  /* 49 */ 'In the storage room and supply area.',
+  /* 50 */ 'In the sleeping quarters.',
+  /* 51 */ 'In an elevator at subsurface level.',
+  /* 52 */ 'In an elevator at surface level.',
+  /* 53 */ 'In the station control center.',
+  /* 54 */ 'In the transporter room.',
+  /* 55 */ 'In the space station laboratory.',
+  /* 56 */ 'In the hanger area. The launch area',
+  /* 57 */ 'is just to the south.',
+  /* 58 */ 'In an air lock chamber between the',
+  /* 59 */ 'changing area and the hanger.',
+  /* 60 */ 'In a space suit changing area.',
+  '',  // [61] unused placeholder
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -99,7 +104,9 @@ const T = [
 //   Columns 6-7 : first/last T[] index for this location's text description
 //
 // Corrections vs. BASIC OCR:
-//   • Loc 32 T2=47 (OCR had corrupt value 40)
+//   • Loc 29 S = 38 (hanger) per the magazine listing; the Big Computer Games
+//     OCR read 30 (infirmary), which sent the player to the wrong room and
+//     made the hanger unreachable from the corridor.
 // ─────────────────────────────────────────────────────────────────────────────
 
 //                    N    S    E    W    U    D   T1  T2
@@ -115,38 +122,38 @@ const M_INIT = [
   [ 0,  7, 10,  0,  0,  0, 13, 14],  //  8 Aristoteles crater
   [10,  2, 14,  7,  0,  0, 15, 16],  //  9 Lacus Somniorum
   [ 0,  9, 14,  8,  0,  0, 17, 18],  // 10 Burg Crater (soft surface — dig here)
-  [12, 15,  7, 16,  0,  0, 19, 24],  // 11 Plato crater base (6-line description)
-  [ 0, 11,  0, 13,  0,  0, 25, 26],  // 12 Before shed
-  [ 0, 16, 12, 22,  0,  0, 27, 28],  // 13 Locked shed entrance
+  [12, 15,  7, 16,  0,  0, 19, 24],  // 11 East side of Mare Imbrium
+  [ 0, 11,  0, 13,  0,  0, 25, 26],  // 12 Plato crater base (meteor shower W)
+  [ 0, 16, 12, 22,  0,  0, 27, 28],  // 13 Before the metal shed (locked W)
   [99, 99, 99, 99,  0,  0, 29, 30],  // 14 Dark area east (all exits=death initially)
   [11, 18,  1,  0,  0,  0, 31, 32],  // 15 Spacecraft crash site
-  [17, 16,  7, 16,  0,  0, 33, 33],  // 16 Ship airlock 1  
-  [16, 17, 11, 17,  0,  0, 33, 33],  // 17 Ship airlock 2  
-  [15, 19,  0,  0,  0,  0, 34, 34],  // 18 Aft cargo / fuel storage
-  [18,  0, 20,  0,  0,  0, 35, 35],  // 19 Engine room
-  [ 0,  0,  0, 19, 21,  0, 36, 36],  // 20 Lower spacecraft section
-  [ 0,  0,  0,  0,  0, 20, 37, 38],  // 21 Control room  
-  [ 0,  0, 13,  0,  0, 23, 39, 40],  // 22 Shed interior 
-  [24,  0,  0,  0, 22,  0, 41, 41],  // 23 Ventilator shaft 
+  [17, 16,  7, 16,  0,  0, 33, 33],  // 16 Center of Mare Imbrium (wandering)
+  [16, 17, 11, 17,  0,  0, 33, 33],  // 17 Center of Mare Imbrium (wandering)
+  [15, 19,  0,  0,  0,  0, 34, 34],  // 18 Ship air lock chamber
+  [18,  0, 20,  0,  0,  0, 35, 35],  // 19 Aft cargo / fuel storage (FUEL here)
+  [ 0,  0,  0, 19, 21,  0, 36, 36],  // 20 Engine room
+  [ 0,  0,  0,  0,  0, 20, 37, 38],  // 21 Ship control room (BLAST here)
+  [ 0,  0, 13,  0,  0, 23, 39, 40],  // 22 Shed interior
+  [24,  0,  0,  0, 22,  0, 41, 41],  // 23 Ventilator shaft
   [25, 23,  0,  0,  0,  0, 42, 43],  // 24 Ventilator opening
   [27, 26, 33, 32, 24,  0, 44, 44],  // 25 Station corridor
   [25,  0, 30, 31,  0,  0, 44, 44],  // 26 Station corridor
   [34, 25, 41,  0,  0,  0, 44, 44],  // 27 Station corridor
   [ 0, 29, 42, 36,  0,  0, 44, 44],  // 28 Station corridor
-  [28, 30, 40, 37,  0,  0, 44, 44],  // 29 Station corridor
+  [28, 38, 40, 37,  0,  0, 44, 44],  // 29 Station corridor (S = hanger)
   [ 0,  0,  0, 26,  0,  0, 45, 45],  // 30 Infirmary
   [ 0,  0, 26,  0,  0,  0, 46, 46],  // 31 Recreation room
   [ 0,  0, 25,  0,  0,  0, 47, 48],  // 32 Mess hall
-  [ 0,  0,  0, 25,  0,  0, 50, 50],  // 33 Sleeping quarters  
-  [ 0, 27,  0,  0,  0,  0, 49, 49],  // 34 Storage room  
-  [ 0, 28,  0,  0, 24,  0, 53, 53],  // 35 Station control center  
-  [ 0,  0, 28,  0,  0,  0, 54, 54],  // 36 Transporter room  
-  [ 0,  0, 29,  0,  0,  0, 55, 55],  // 37 Laboratory  
-  [29,  0, 39,  0,  0,  0, 56, 57],  // 38 Hanger area 
-  [40,  0,  0, 38,  0,  0, 58, 59],  // 39 Airlock (changing↔hanger)  
-  [ 0, 39,  0, 29,  0,  0, 60, 60],  // 40 Space suit changing area  
-  [ 0,  0,  0, 27, 42,  0, 51, 51],  // 41 Elevator – subsurface  
-  [ 0,  0,  0, 28,  0, 41, 52, 52],  // 42 Elevator – surface  
+  [ 0,  0,  0, 25,  0,  0, 50, 50],  // 33 Sleeping quarters
+  [ 0, 27,  0,  0,  0,  0, 49, 49],  // 34 Storage room
+  [ 0, 28,  0,  0, 24,  0, 53, 53],  // 35 Station control center
+  [ 0,  0, 28,  0,  0,  0, 54, 54],  // 36 Transporter room
+  [ 0,  0, 29,  0,  0,  0, 55, 55],  // 37 Laboratory
+  [29,  0, 39,  0,  0,  0, 56, 57],  // 38 Hanger area
+  [40,  0,  0, 38,  0,  0, 58, 59],  // 39 Airlock (changing↔hanger)
+  [ 0, 39,  0, 29,  0,  0, 60, 60],  // 40 Space suit changing area
+  [ 0,  0,  0, 27, 42,  0, 51, 51],  // 41 Elevator – subsurface
+  [ 0,  0,  0, 28,  0, 41, 52, 52],  // 42 Elevator – surface
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -230,17 +237,17 @@ const LOC_NAME = [
   'Aristoteles Crater',       //  8
   'Lacus Somniorum',          //  9
   'Burg Crater (soft)',       // 10
-  'Plato Crater Base',        // 11
-  'Before Shed',              // 12
-  'Shed Entrance',            // 13
+  'East Mare Imbrium',        // 11
+  'Plato Crater Base',        // 12
+  'Before Metal Shed',        // 13
   'Eastern Darkness',         // 14
   'Spacecraft Crash Site',    // 15
-  'Ship Airlock 1',           // 16
-  'Ship Airlock 2',           // 17
-  'Aft Cargo / Fuel',         // 18
-  'Engine Room',              // 19
-  'Lower Spacecraft',         // 20
-  'Control Room',             // 21
+  'Center of Mare Imbrium',   // 16
+  'Center of Mare Imbrium',   // 17
+  'Ship Air Lock',            // 18
+  'Aft Cargo / Fuel',         // 19
+  'Engine Room',              // 20
+  'Ship Control Room',        // 21
   'Shed Interior',            // 22
   'Ventilator Shaft',         // 23
   'Ventilator Opening',       // 24
@@ -268,12 +275,29 @@ const LOC_NAME = [
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Locations that consume oxygen each turn (requires carrying oxygen module). */
+/**
+ * Locations where breathable air is NOT available (BASIC line 820: p < 18).
+ * The moon surface (1-17) always needs oxygen. The wrecked ship (18-21) and
+ * the space station (22-42) hold pressure, except the hanger (38), which is
+ * handled separately because it is safe only when entered through its air
+ * lock (BASIC lines 830/1700).
+ */
 function needsOxygen(p) {
-  return (p >= 1 && p <= 18) || p === 38;
+  return p < 18;
 }
 
-/** Locations where a power supply is required to survive. */
+/**
+ * Locations where a power supply must be kept to survive (BASIC line 2710:
+ * p < 22, p = 38, or the station seal has been blown).
+ */
 function needsPower(p) {
-  return (p >= 1 && p <= 21) || p === 38;
+  return p < 22 || p === 38;
+}
+
+/**
+ * Locations where running out of power is fatal (BASIC line 3680: p < 22 or
+ * the station air seal has been blown).
+ */
+function powerFatal(p, f9) {
+  return p < 22 || f9 === 1;
 }
