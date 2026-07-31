@@ -1,793 +1,285 @@
 /**
- * gameData.js — SURVIVAL: Space Station Omega
+ * gameData.js — SURVIVAL (Moon Survival, original by Stewart Rush, 3/12/81)
  *
- * All static game-world data: rooms, items, messages, and configuration.
- * Game logic lives in game.js; this file is pure data.
+ * Faithful JavaScript port of the BASIC text adventure.
+ * All static world data lives here; game logic is in game.js.
  *
- * RECONSTRUCTION NOTES
- * ────────────────────
- * The original BASIC source and magazine article were used as design inputs.
- * Where OCR corruption or BASIC line-numbering made intent unclear, the most
- * plausible interpretation was chosen and marked with TODO comments.
- *
- * APPROVED GAMEPLAY ADJUSTMENTS (see README for full list):
- *   1. Dark-room safety: player can always retrace their entry step.
- *   2. Robot fairness: two-turn warning before the robot kills.
- *   3. Map reciprocals: all exit pairs are consistent.
- *   4. Resources raised: oxygen 120 (was ~80), power 100 (was ~60).
- *   5. Inventory raised: 6 slots (was 5).
+ * ── OCR / Bug fixes applied ──────────────────────────────────────────────────
+ *  1. f9 initial = 0 (BASIC OCR had 8; caused instant station death)
+ *  2. o(9) fuel-loaded sentinel = 98 (OCR had 984)
+ *  3. Drop-item bug: checked o(1) instead of o(i)
+ *  4. Bomb deactivation: checks o(7)==current location (not o(7)==99 carry)
+ *  5. Movement matrix loc 21 T=36-37 (OCR had 37-38)
+ *  6. Movement matrix locs 22-42 T-values shifted by +1 in OCR; corrected -1
+ *  7. Movement matrix loc 32 T2 = 47 (OCR had 40, corrupted)
+ *  8. Movement matrix loc 29 S=38 (reciprocal of loc 38 N=29; enables blown-seal)
+ *  9. Movement matrix loc 2 T=4-5 (2-line description; "darkness" line belongs to loc 3)
+ * 10. Movement matrix loc 3 T=6-7 (2-line: "There is total darkness…/between the craters")
+ * 11. Self-loop exits (e.g. loc 16 S=16) treated as 0 (no exit)
+ * 12. Expose-deactivator routine: adds o[6]=14 (missing from OCR)
+ * 13. Bomb detonation at t1>350 (BASIC section was empty/corrupted)
+ * 14. Robot patrol: stops at loc 35 (unchanged from original)
+ * 15. Various OCR typos in text strings corrected
  */
 
 'use strict';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONFIGURATION
+// TEXT DESCRIPTIONS  (t$[1..59]; index 0 and 60 are unused placeholders)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GAME_CONFIG = {
-  // Resources — slightly raised from originals per approved adjustments
-  startingOxygen:    120,   // original ≈ 80–100
-  startingPower:     100,   // original ≈ 60–80
-  oxygenTankBoost:    30,   // units restored per oxygen tank
-  powerCellBoost:     50,   // units restored per power cell
-
-  // Inventory — slightly raised from original (5 → 6)
-  inventoryLimit:      6,
-
-  // Robot — approved fairness improvement
-  robotWarningTurns:   2,   // turns of warning before robot kills player
-};
+const T = [
+  '',  // [0] unused
+  /* 1 */ 'At Mare Serenitatis. Long eerie shadows',
+  /* 2 */ 'from distant mountains and craters cast',
+  /* 3 */ 'themselves across the barren landscape.',
+  /* 4 */ 'On a promontory point on the rim of the',
+  /* 5 */ 'crater Posidonius, only half visible.',
+  /* 6 */ 'There is total darkness to the east,',
+  /* 7 */ 'between the craters of Dawes and Plinius.',
+  /* 8 */ 'At a pass in the mountains of Haemus.',
+  /* 9 */ 'At the base of the crater Manilus.',
+  /* 10 */ 'At Mare Vaporum. The Apennine mountains',
+  /* 11 */ 'rise ominously to the north and west.',
+  /* 12 */ 'At the base of the awesome Mt. Eudoxus.',
+  /* 13 */ 'Inside the crater of Aristoteles. The',
+  /* 14 */ 'crater floor is littered with rocks.',
+  /* 15 */ 'In Lacus Somniorum, north of Posidonius',
+  /* 16 */ 'and northeast of Mare Serenitatis.',
+  /* 17 */ 'At the base of the Burg Crater in Lacus',
+  /* 18 */ 'Mortis. The surface is very soft here.',
+  /* 19 */ 'At the east side of the vast Mare of',
+  /* 20 */ 'Imbrium. To the north the low angle of',
+  /* 21 */ 'the sun casts eerie shadows on the soft',
+  /* 22 */ 'surface and distant mountains to the',
+  /* 23 */ 'east. To the west, the mare stretches',
+  /* 24 */ 'out of sight to the horizon.',
+  /* 25 */ 'At the base of the crater of Plato. A',
+  /* 26 */ 'shiny object is seen to the west.',
+  /* 27 */ 'Standing before a small metal shed. A',
+  /* 28 */ "sign reads: 'Ventilator Shaft 02.'",
+  /* 29 */ 'Somewhere east of Mare Serenitatis.',
+  /* 30 */ 'There is total darkness.',
+  /* 31 */ 'At the crash site of a spacecraft.',
+  /* 32 */ 'The ship entrance is before you.',
+  /* 33 */ 'In the air lock chamber of the ship.',
+  /* 34 */ 'In the aft cargo and fuel storage room.',
+  /* 35 */ 'In the engine room of the spacecraft.',
+  /* 36 */ "In the control room. The ship's console",
+  /* 37 */ 'is before you.',
+  /* 38 */ 'Inside a dark shed. A ladder leads down',
+  /* 39 */ 'into a large metal shaft.',
+  /* 40 */ 'In a ventilator passage.',
+  /* 41 */ 'At a ventilator opening. Through the',
+  /* 42 */ 'opening a lit passageway can be seen.',
+  /* 43 */ 'In a lighted space station corridor.',
+  /* 44 */ 'In the space station infirmary.',
+  /* 45 */ 'In the recreation room and library.',
+  /* 46 */ 'In the mess hall. Abandoned food trays',
+  /* 47 */ 'are still on the tables.',
+  /* 48 */ 'In the storage room and supply area.',
+  /* 49 */ 'In the sleeping quarters.',
+  /* 50 */ 'In an elevator at subsurface level.',
+  /* 51 */ 'In an elevator at surface level.',
+  /* 52 */ 'In the station control center.',
+  /* 53 */ 'In the transporter room.',
+  /* 54 */ 'In the space station laboratory.',
+  /* 55 */ 'In the hanger area. The launch area',
+  /* 56 */ 'is just to the south.',
+  /* 57 */ 'In an air lock chamber between the',
+  /* 58 */ 'changing area and the hanger.',
+  /* 59 */ 'In a space suit changing area.',
+  '',  // [60] unused placeholder
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ROOMS
-// ─────────────────────────────────────────────────────────────────────────────
+// MOVEMENT MATRIX  m[p] = [N, S, E, W, U, D, T1, T2]
 //
-// MAP OVERVIEW (schematic — north is "up"):
+//   Columns 0-5 : destination location for that direction (0=blocked, 99=death)
+//   Columns 6-7 : first/last T[] index for this location's text description
 //
-//   [25 OXYGEN BAY] ─ W─E ─ [05 W CORRIDOR] ─ W─E ─ [01 COMMAND CTR]
-//                                 │ N─S                  │N  │E  │S  │W
-//                            [13 STOR A]              [02]  [03] [04] [05]
-//                            │N      │E                 │     │     │
-//                           [12]  [14 STOR B]  (02 N─S 06)  (03 E─W 08)
-//                           │W       │N                 │     │S
-//                           [02]    [08 MED BAY]       [06] [09 LAB]
-//                                   │W                  │N│E  │E
-//                                  [03]                [07] [21] [15 DARK]
-//                                                              │E
-//         [22 DEACT] ─ W─E ─ [11 POWER] ─ N─S ─ [04]       [16 DARK]
-//                                                              │S
-//    [10 ENGINEERING] ─ W─E ─ [04]            [17 ROBOT ZONE]─N─[10]
-//               │S                              │S  │E→[16]
-//         [17 ROBOT ZONE]                      [18 ROBOT BASE EXT]
-//               │S                              │S
-//         [18 ROBOT BASE EXT]                  [19 ROBOT BASE ENTRY]
-//               │S                              │S
-//         [19 ROBOT BASE ENTRY]               [20 ROBOT CTRL]─E─[23 ESC CORR]
-//               │S                                                  │S
-//         [20 ROBOT CTRL] ─ E─W ─ [23 ESC CORR]               [24 ESC PODS]
-//
-// All exits are reciprocal (approved fix). See individual rooms for details.
+// Corrections vs. BASIC OCR:
+//   • Self-loop exits (e.g. loc16 S=16) replaced with 0
+//   • Loc 2  : T=4-5  (2-line overlook; "darkness" line belongs to loc 3)
+//   • Loc 3  : T=6-7  (2-line dark area description)
+//   • Loc 21 : T=36-37 (control room; OCR had 37-38)
+//   • Locs 22-42: T values each decreased by 1 (OCR systematic +1 shift)
+//   • Loc 29 S=38  (reciprocal of loc 38 N=29; dead code otherwise)
+//   • Loc 32 T2=47 (OCR had corrupt value 40)
+// ─────────────────────────────────────────────────────────────────────────────
 
-const ROOMS = {
+//                    N    S    E    W    U    D   T1  T2
+const M_INIT = [
+  null,              //  0  (unused)
+  [ 7,  4,  2, 15,  0,  0,  1,  3],  //  1 Mare Serenitatis
+  [ 9,  3, 14,  1,  0,  0,  4,  5],  //  2 Overlook at Posidonius  (T fix: 4-5)
+  [ 2,  5, 14,  4,  0,  0,  6,  7],  //  3 Darkness east           (T fix: 6-7)
+  [ 1,  5,  3,  0,  0,  0,  8,  8],  //  4 Pass in Haemus
+  [ 4,  0,  3,  6,  0,  0,  9,  9],  //  5 Base of Manilus
+  [ 0,  0,  5,  0,  0,  0, 10, 11],  //  6 Mare Vaporum (dead end, illuminator here)
+  [ 8,  1,  9, 11,  0,  0, 12, 12],  //  7 Base of Eudoxus
+  [ 0,  7, 10,  0,  0,  0, 13, 14],  //  8 Aristoteles crater
+  [10,  2, 14,  7,  0,  0, 15, 16],  //  9 Lacus Somniorum
+  [ 0,  9, 14,  8,  0,  0, 17, 18],  // 10 Burg Crater (soft surface — dig here)
+  [12, 15,  7, 16,  0,  0, 19, 24],  // 11 Plato crater base (6-line description)
+  [ 0, 11,  0, 13,  0,  0, 25, 26],  // 12 Before shed
+  [ 0, 16, 12, 22,  0,  0, 27, 28],  // 13 Locked shed entrance
+  [99, 99, 99, 99,  0,  0, 29, 30],  // 14 Dark area east (all exits=death initially)
+  [11, 18,  1,  0,  0,  0, 31, 32],  // 15 Spacecraft crash site
+  [17,  0,  7,  0,  0,  0, 33, 33],  // 16 Ship airlock 1  (self-loops → 0)
+  [16,  0, 11,  0,  0,  0, 33, 33],  // 17 Ship airlock 2  (self-loops → 0)
+  [15, 19,  0,  0,  0,  0, 34, 34],  // 18 Aft cargo / fuel storage
+  [18,  0, 20,  0,  0,  0, 35, 35],  // 19 Engine room
+  [ 0,  0,  0, 19, 21,  0, 36, 36],  // 20 Lower spacecraft section
+  [ 0,  0,  0,  0,  0, 20, 36, 37],  // 21 Control room  (T fix: 36-37)
+  [ 0,  0, 13,  0,  0, 23, 38, 39],  // 22 Shed interior  (T-1: 38-39)
+  [24,  0,  0,  0, 22,  0, 40, 40],  // 23 Ventilator shaft  (T-1: 40)
+  [25, 23,  0,  0,  0,  0, 41, 42],  // 24 Ventilator opening  (T-1: 41-42)
+  [27, 26, 33, 32, 24,  0, 43, 43],  // 25 Station corridor  (T-1: 43)
+  [25,  0, 30, 31,  0,  0, 43, 43],  // 26 Station corridor  (T-1: 43)
+  [34, 25, 41,  0,  0,  0, 43, 43],  // 27 Station corridor  (T-1: 43)
+  [ 0, 29, 42, 36,  0,  0, 43, 43],  // 28 Station corridor  (T-1: 43; N opened by robot)
+  [28, 38, 40, 37,  0,  0, 43, 43],  // 29 Station corridor  (T-1: 43; S fix: 38)
+  [ 0,  0,  0, 26,  0,  0, 44, 44],  // 30 Infirmary  (T-1: 44)
+  [ 0,  0, 26,  0,  0,  0, 45, 45],  // 31 Recreation room  (T-1: 45)
+  [ 0,  0, 25,  0,  0,  0, 46, 47],  // 32 Mess hall  (T fix: 46-47)
+  [ 0,  0,  0, 25,  0,  0, 49, 49],  // 33 Sleeping quarters  (T-1: 49)
+  [ 0, 27,  0,  0,  0,  0, 48, 48],  // 34 Storage room  (T-1: 48)
+  [ 0, 28,  0,  0, 24,  0, 52, 52],  // 35 Station control center  (T-1: 52)
+  [ 0,  0, 28,  0,  0,  0, 53, 53],  // 36 Transporter room  (T-1: 53)
+  [ 0,  0, 29,  0,  0,  0, 54, 54],  // 37 Laboratory  (T-1: 54)
+  [29,  0, 39,  0,  0,  0, 55, 56],  // 38 Hanger area  (T-1: 55-56; needs O₂!)
+  [40,  0,  0, 38,  0,  0, 57, 58],  // 39 Airlock (changing↔hanger)  (T-1: 57-58)
+  [ 0, 39,  0, 29,  0,  0, 59, 59],  // 40 Space suit changing area  (T-1: 59)
+  [ 0,  0,  0, 27, 42,  0, 50, 50],  // 41 Elevator – subsurface  (T-1: 50)
+  [ 0,  0,  0, 28,  0, 41, 51, 51],  // 42 Elevator – surface  (T-1: 51)
+];
 
-  1: {
-    id: 1,
-    name: 'Command Center',
-    description:
-      'You are in the command center of Space Station Omega. Emergency lighting ' +
-      'casts a red glow across the banks of consoles. Every monitor displays ' +
-      'ERROR or SYSTEM FAILURE. Corridors lead in all directions.',
-    exits: { n: 2, e: 3, s: 4, w: 5 },
-    items: [],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
+// ─────────────────────────────────────────────────────────────────────────────
+// OBJECT INITIAL LOCATIONS  o[1..14]
+//   99 = in player inventory, 0 = not yet on map, other = location number
+// ─────────────────────────────────────────────────────────────────────────────
 
-  2: {
-    id: 2,
-    name: 'North Corridor',
-    description:
-      'A long corridor running north–south. Blast marks scar the walls. The ' +
-      'airlock section lies to the north. A side passage leads east to the ' +
-      'computer room.',
-    exits: { s: 1, n: 6, e: 12 },
-    items: [],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
+// Index:          0     1   2   3    4   5   6   7   8    9  10  11  12  13  14
+const O_INIT = [null,  21, 19,  99,  6, 32,  0, 38, 35,  0, 35, 99, 33, 34, 37];
+//  1 electronic key  → loc 21 (spacecraft control room)
+//  2 sealant         → loc 19 (aft cargo/fuel storage)
+//  3 oxygen module   → 99 (player carries from start)
+//  4 illuminator     → loc  6 (Mare Vaporum dead end)
+//  5 robot           → loc 32 (mess hall)
+//  6 deactivator     → 0  (buried; appears at loc 14 after t1>200)
+//  7 nuclear bomb    → loc 38 (hanger, needs O₂ to reach)
+//  8 transporter unit→ loc 35 (station control center)
+//  9 dilithium cryst.→ 0  (buried at loc 10; DIG command reveals it)
+// 10 computer message→ loc 35 (station control center)
+// 11 power unit      → 99 (player carries from start)
+// 12 mirror          → loc 33 (sleeping quarters)
+// 13 coded badge     → loc 34 (storage room)
+// 14 power pack      → loc 37 (laboratory)
 
-  3: {
-    id: 3,
-    name: 'East Corridor',
-    description:
-      'The east corridor connects the research wing to the main hub. Sparking ' +
-      'conduits hang from the ceiling. Passages lead west to the hub, east to ' +
-      'the medical bay, and south to the laboratory.',
-    exits: { w: 1, e: 8, s: 9 },
-    items: [],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
+// ─────────────────────────────────────────────────────────────────────────────
+// ITEM NAMES  (definite article form used in "There is … here")
+// ─────────────────────────────────────────────────────────────────────────────
 
-  4: {
-    id: 4,
-    name: 'South Corridor',
-    description:
-      'The south corridor. Reactor-zone warning signs are posted everywhere. ' +
-      'Passages branch west to engineering and south toward the power room.',
-    exits: { n: 1, w: 10, s: 11 },
-    items: [],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
+const ITEM_NAME = [
+  null,                   //  0 unused
+  'an electronic key',    //  1
+  'sealant',              //  2
+  'an oxygen module',     //  3
+  'an illuminator',       //  4
+  'a robot',              //  5
+  'a deactivator',        //  6
+  'a nuclear bomb',       //  7
+  'a transporter unit',   //  8
+  'dilithium crystals',   //  9
+  'a computer message',   // 10
+  'a power unit',         // 11
+  'a mirror',             // 12
+  'a coded badge',        // 13
+  'a power pack',         // 14
+];
 
-  5: {
-    id: 5,
-    name: 'West Corridor',
-    description:
-      'The west corridor. Storage sections branch north. The emergency oxygen ' +
-      'reserves bay lies to the west. The main hub is east.',
-    exits: { e: 1, n: 13, w: 25 },
-    items: [],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
+// ─────────────────────────────────────────────────────────────────────────────
+// ITEM KEYWORD MAP  first-3-letters of noun → item index
+// ─────────────────────────────────────────────────────────────────────────────
 
-  6: {
-    id: 6,
-    name: 'Airlock Antechamber',
-    description:
-      'The antechamber before the main airlock. Spacesuits hang in sealed lockers ' +
-      'on the wall. A heavy pressure door leads north to the outer airlock. A ' +
-      'passage east leads to the experimental transporter room.',
-    exits: { s: 2, n: 7, e: 21 },
-    items: ['spacesuit'],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
-
-  7: {
-    id: 7,
-    name: 'Outer Airlock',
-    description:
-      'You are in the outer airlock chamber. Warning lights flash red. Through ' +
-      'the thick viewport the stars are visible and the station hull gleams in ' +
-      'starlight. A control panel reads: EXTERIOR HATCH — MANUAL OVERRIDE. ' +
-      'The inner door is south.',
-    // north is a special exit (death without spacesuit) — handled in game.js
-    exits: { s: 6 },
-    items: [],
-    dark: false,
-    robotPatrol: false,
-    special: 'outerAirlock',
-  },
-
-  8: {
-    id: 8,
-    name: 'Medical Bay',
-    description:
-      'The station medical bay. Overturned beds and scattered supplies suggest ' +
-      'a hasty evacuation. A medical cabinet stands against the wall, partially ' +
-      'ransacked. One sealed drawer remains untouched.',
-    exits: { w: 3, s: 14 },
-    items: ['medikit', 'accesscard'],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
-
-  9: {
-    id: 9,
-    name: 'Research Laboratory',
-    description:
-      'The research laboratory. Banks of terminals still run on backup power. ' +
-      'An experiment is mid-run, apparently abandoned. A dark, unlit passage ' +
-      'leads east into the unilluminated section of the station.',
-    exits: { n: 3, e: 15 },
-    items: ['flashlight'],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
-
-  10: {
-    id: 10,
-    name: 'Engineering Bay',
-    description:
-      'The engineering bay. Heavy machinery fills the room. Maintenance robots ' +
-      'stand in their charging alcoves — inactive. Racks of tools line the walls.',
-    exits: { e: 4, s: 17 },
-    items: ['toolkit'],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
-
-  11: {
-    id: 11,
-    name: 'Power Room',
-    description:
-      'The main power room. The reactor core hums at minimal output. The ' +
-      'primary power cell is drained. Battery backups show 15%. A reinforced ' +
-      'door to the east leads to the deactivation chamber.',
-    exits: { n: 4, e: 22 },
-    items: [],
-    dark: false,
-    robotPatrol: false,
-    special: 'powerRoom',
-  },
-
-  12: {
-    id: 12,
-    name: 'Computer Room',
-    description:
-      'Banks of processors hum on backup power. A security terminal displays ' +
-      'RESTRICTED ACCESS. Station schematics glow on one monitor — a map of ' +
-      'the escape pod bay is highlighted. A security station is on the wall.',
-    exits: { w: 2, s: 13 },
-    items: ['badge'],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
-
-  13: {
-    id: 13,
-    name: 'Storage Room A',
-    description:
-      'Storage room A. Crates are stacked floor to ceiling; most have been ' +
-      'pried open. A few sealed emergency crates remain. Passages lead north ' +
-      'to the computer room, south to the west corridor, and east to storage B.',
-    exits: { n: 12, s: 5, e: 14 },
-    items: ['powercell'],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
-
-  14: {
-    id: 14,
-    name: 'Storage Room B',
-    description:
-      'Storage room B — smaller than A, contents undisturbed. Emergency supply ' +
-      'crates are strapped to the walls. Passages lead west to storage A and ' +
-      'north to the medical bay.',
-    exits: { w: 13, n: 8 },
-    items: ['oxygentank'],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
-
-  15: {
-    id: 15,
-    name: 'Dark Passage',
-    description:
-      'A passage leading into the unlit section of the station. The emergency ' +
-      'lighting has failed completely here. Without a light source you can ' +
-      'barely make out anything.',
-    exits: { w: 9, e: 16 },
-    items: [],
-    dark: true,
-    robotPatrol: false,
-    special: null,
-  },
-
-  16: {
-    id: 16,
-    name: 'Dark Chamber',
-    description:
-      'A chamber deep in the unlit section. In the darkness the room feels ' +
-      'vast. Something lies on the floor nearby. A passage continues east.',
-    // FIX: original had inconsistent exits here (OCR/BASIC ambiguity).
-    // Corrected so the dark section runs as a W-E chain: Lab─15─16─17,
-    // matching the reciprocal requirement and the map schematic.
-    exits: { w: 15, e: 17 },
-    items: ['keycard'],
-    dark: true,
-    robotPatrol: false,
-    special: null,
-  },
-
-  17: {
-    id: 17,
-    name: 'Robot Patrol Zone',
-    description:
-      'A wide corridor that marks the boundary of the security robot\'s patrol ' +
-      'territory. Deep wheel tracks are worn into the metal floor. Signs read: ' +
-      'SECURITY ZONE — AUTHORIZED PERSONNEL ONLY. An unlit passage leads west.',
-    // FIX: exit west→16 replaces the original ambiguous east/south dark-room link.
-    exits: { n: 10, w: 16, s: 18 },
-    items: [],
-    dark: false,
-    robotPatrol: true,
-    special: null,
-  },
-
-  18: {
-    id: 18,
-    name: 'Robot Base Exterior',
-    description:
-      'The exterior of the robot command base. Heavy blast doors seal most ' +
-      'entrances. Warning lights flash red. A reinforced door south is marked ' +
-      'SECURITY CONTROL — AUTHORIZED ACCESS ONLY.',
-    exits: { n: 17, s: 19 },
-    items: [],
-    dark: false,
-    robotPatrol: true,
-    special: null,
-  },
-
-  19: {
-    id: 19,
-    name: 'Robot Base Entry',
-    description:
-      'The entry corridor of the robot base. The air smells of machine oil ' +
-      'and ozone. Security cameras track your every move. Doors lead north ' +
-      'and south.',
-    exits: { n: 18, s: 20 },
-    items: [],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
-
-  20: {
-    id: 20,
-    name: 'Robot Control Room',
-    description:
-      'The robot control room. A master console displays status for all ' +
-      'security units: ROBOT ALPHA — ACTIVE / PATROL MODE. Emergency override ' +
-      'tools are scattered on the workbench. A passage east leads out.',
-    exits: { n: 19, e: 23 },
-    items: ['deactivator'],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
-
-  21: {
-    id: 21,
-    name: 'Transporter Room',
-    description:
-      'The station\'s experimental transporter room. A glowing platform in the ' +
-      'center pulses with faint energy. A control panel lists available ' +
-      'destinations. The system needs both power and an authorization keycard ' +
-      'to operate.',
-    exits: { w: 6 },
-    items: [],
-    dark: false,
-    robotPatrol: false,
-    special: 'transporter',
-  },
-
-  22: {
-    id: 22,
-    name: 'Deactivation Chamber',
-    description:
-      'A reinforced chamber for handling dangerous materials. In the center, ' +
-      'on a heavy pedestal, sits a device with a blinking red light. It is ' +
-      'clearly an explosive. The trigger mechanism appears armed and waiting.',
-    exits: { w: 11 },
-    items: ['bomb'],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
-
-  23: {
-    id: 23,
-    name: 'Escape Corridor',
-    description:
-      'The escape corridor leading to the emergency pods. Red and amber lights ' +
-      'flash in sequence. Signs point south: ESCAPE PODS — EMERGENCY USE ONLY. ' +
-      'A passage west leads back into the robot base area.',
-    exits: { w: 20, s: 24 },
-    items: [],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
-
-  24: {
-    id: 24,
-    name: 'Escape Pod Bay',
-    description:
-      'The escape pod bay! Six bays line the walls; three pods have already ' +
-      'launched. A fourth pod sits ready, console lights blinking green. ' +
-      'This is your way off the station. Insert an authorized access card ' +
-      'to launch.',
-    exits: { n: 23 },
-    items: [],
-    dark: false,
-    robotPatrol: false,
-    special: 'escapePod',
-  },
-
-  25: {
-    id: 25,
-    name: 'Oxygen Reserves Bay',
-    description:
-      'The emergency oxygen reserves bay. Rows of pressurized tanks are ' +
-      'secured to the walls under green-labeled emergency lighting. Station ' +
-      'protocol keeps these sealed for life-support backup.',
-    exits: { e: 5 },
-    items: ['oxygentank2'],
-    dark: false,
-    robotPatrol: false,
-    special: null,
-  },
-
+const ITEM_KEYS = {
+  ele: 1, key: 1,
+  sea: 2,
+  oxy: 3, mod: 3,
+  ill: 4,
+  rob: 5,
+  dea: 6,
+  nuc: 7, bom: 7,
+  tra: 8,
+  dil: 9, cry: 9,
+  com: 10, mes: 10,
+  uni: 11,
+  mir: 12,
+  bad: 13,
+  pac: 14,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ITEMS
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// Fields:
-//   id          — string key (matches key in ITEMS and in room.items arrays)
-//   name        — display name
-//   keywords    — words a player can type to refer to this item
-//   description — shown by EXAMINE
-//   portable    — can the player pick it up?
-//   weight      — inventory slots used (total limit = GAME_CONFIG.inventoryLimit)
-//   useEffect   — string tag consumed by the USE handler in game.js (null = generic)
-//   useMessage  — printed on successful generic USE (null = handled specially)
-//   useFailMsg  — printed when USE conditions are not met
-
-const ITEMS = {
-
-  badge: {
-    id: 'badge',
-    name: 'Security Badge',
-    keywords: ['badge', 'security', 'id', 'identification', 'pass'],
-    description:
-      'A crew security badge bearing your photo and Level-3 clearance. The ' +
-      'station robot security system recognises this badge and will not engage ' +
-      'authorized personnel.',
-    portable: true,
-    weight: 1,
-    useEffect: null,
-    useMessage:
-      'You hold up the security badge. The robot sensors scan it and acknowledge ' +
-      'your authorization.',
-    useFailMsg: null,
-  },
-
-  flashlight: {
-    id: 'flashlight',
-    name: 'Flashlight',
-    keywords: ['flashlight', 'flash', 'light', 'torch', 'lamp'],
-    description:
-      'A heavy-duty battery-powered flashlight. Essential for navigating the ' +
-      'unlit sections of the station.',
-    portable: true,
-    weight: 1,
-    useEffect: 'light',
-    useMessage: 'You switch on the flashlight. Its beam cuts through the darkness.',
-    useFailMsg: null,
-  },
-
-  oxygentank: {
-    id: 'oxygentank',
-    name: 'Oxygen Tank',
-    keywords: ['oxygen', 'tank', 'o2', 'air', 'oxy', 'canister'],
-    description:
-      'An emergency oxygen tank. Connecting this to your suit coupling will ' +
-      'extend your air supply by 30 units.',
-    portable: true,
-    weight: 2,
-    useEffect: 'oxygen',
-    useMessage: 'You connect the oxygen tank. Air supply extended by 30 units.',
-    useFailMsg: null,
-  },
-
-  oxygentank2: {
-    id: 'oxygentank2',
-    name: 'Oxygen Tank',
-    keywords: ['oxygen', 'tank', 'o2', 'air', 'oxy', 'canister'],
-    description:
-      'An emergency oxygen tank. Connecting this to your suit coupling will ' +
-      'extend your air supply by 30 units.',
-    portable: true,
-    weight: 2,
-    useEffect: 'oxygen',
-    useMessage: 'You connect the oxygen tank. Air supply extended by 30 units.',
-    useFailMsg: null,
-  },
-
-  powercell: {
-    id: 'powercell',
-    name: 'Power Cell',
-    keywords: ['power', 'cell', 'battery', 'powercell', 'fuel'],
-    description:
-      'A fully charged emergency power cell. Installing this in the reactor ' +
-      'will restore station power and bring the transporter online.',
-    portable: true,
-    weight: 2,
-    useEffect: 'power',
-    useMessage: null,                        // handled specially in cmdUse
-    useFailMsg:
-      'You need to be in the Power Room to install the power cell in the reactor.',
-  },
-
-  spacesuit: {
-    id: 'spacesuit',
-    name: 'Spacesuit',
-    keywords: ['spacesuit', 'suit', 'space', 'vac', 'vacuum', 'eva'],
-    description:
-      'A full EVA spacesuit. Required to survive exposure to vacuum. The ' +
-      'seals appear intact.',
-    portable: true,
-    weight: 3,
-    useEffect: 'suit',
-    useMessage: 'You put on the spacesuit. You are now protected against vacuum.',
-    useFailMsg: null,
-  },
-
-  medikit: {
-    id: 'medikit',
-    name: 'Medical Kit',
-    keywords: ['medikit', 'medical', 'med', 'kit', 'aid', 'first'],
-    description:
-      'A standard station medical kit. Contains emergency bandages, stimulants, ' +
-      'and basic surgical tools.',
-    portable: true,
-    weight: 1,
-    useEffect: null,
-    useMessage: 'You treat your minor injuries with the medical kit.',
-    useFailMsg: null,
-  },
-
-  toolkit: {
-    id: 'toolkit',
-    name: 'Tool Kit',
-    keywords: ['toolkit', 'tool', 'tools', 'kit', 'wrench', 'spanner'],
-    description:
-      'A comprehensive engineering tool kit. Contains wrenches, drivers, and ' +
-      'diagnostic equipment for station maintenance.',
-    portable: true,
-    weight: 2,
-    useEffect: 'repair',
-    useMessage:
-      'You attempt some field repairs. Nothing critical changes, but a few ' +
-      'sparking conduits are now less of a hazard.',
-    useFailMsg: null,
-  },
-
-  accesscard: {
-    id: 'accesscard',
-    name: 'Access Card',
-    keywords: ['access', 'card', 'level', 'clearance', 'swipe'],
-    description:
-      'A station access card with Level-3 clearance. Can activate restricted ' +
-      'station systems — including emergency escape pods.',
-    portable: true,
-    weight: 1,
-    useEffect: 'access',
-    useMessage: null,                        // handled specially in cmdUse
-    useFailMsg: null,
-  },
-
-  keycard: {
-    id: 'keycard',
-    name: 'Key Card',
-    keywords: ['keycard', 'key', 'card', 'transport'],
-    description:
-      'A keycard found in the dark section. Encoded for the station transporter ' +
-      'system.',
-    portable: true,
-    weight: 1,
-    useEffect: 'transport',
-    useMessage: null,                        // handled specially in cmdUse
-    useFailMsg:
-      'This keycard is encoded for the transporter system. Use it there.',
-  },
-
-  bomb: {
-    id: 'bomb',
-    name: 'Bomb',
-    keywords: ['bomb', 'explosive', 'device', 'timer', 'charge'],
-    description:
-      'An armed explosive device. The trigger mechanism is active. The escape ' +
-      'pod will not launch while this is armed anywhere on the station. It MUST ' +
-      'be deactivated.',
-    portable: true,
-    weight: 3,
-    useEffect: null,
-    useMessage:
-      'You examine the bomb carefully. Without a deactivator you cannot safely ' +
-      'disarm it.',
-    useFailMsg: null,
-  },
-
-  deactivator: {
-    id: 'deactivator',
-    name: 'Deactivator',
-    keywords: ['deactivator', 'deact', 'remote', 'disarm', 'override'],
-    description:
-      'A remote deactivation unit from the robot control room. Originally ' +
-      'designed to shut down rogue robots; it can also disarm explosive devices.',
-    portable: true,
-    weight: 1,
-    useEffect: 'deactivate',
-    useMessage: null,                        // handled specially in cmdUse
-    useFailMsg: 'There is nothing here to deactivate.',
-  },
-
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MESSAGES
+// LOCATION SHORT NAMES  (for HUD display)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MESSAGES = {
-
-  welcome: [
-    '╔══════════════════════════════════════════════════════════╗',
-    '║               S  U  R  V  I  V  A  L                    ║',
-    '║            Space Station Omega — Emergency               ║',
-    '╚══════════════════════════════════════════════════════════╝',
-    '',
-    'You regain consciousness. Emergency alarms blare. The red glow',
-    'of backup lighting fills the Command Center of Space Station Omega.',
-    '',
-    'An explosion has crippled the station. Most crew have evacuated.',
-    'Your oxygen supply is limited. A malfunctioning security robot',
-    'still patrols the lower decks. Someone has planted a bomb.',
-    '',
-    'You must reach the escape pods before your oxygen runs out.',
-    '',
-    'Type HELP for a list of commands, or press a direction button to move.',
-  ].join('\n'),
-
-  help: [
-    'COMMANDS',
-    '────────────────────────────────────────────',
-    'NORTH / N          Move north',
-    'SOUTH / S          Move south',
-    'EAST  / E          Move east',
-    'WEST  / W          Move west',
-    'LOOK  / L          Describe current room',
-    'EXAMINE / X [item] Examine an item',
-    'GET / TAKE [item]  Pick up an item',
-    'DROP [item]        Drop an item',
-    'USE [item]         Use an item',
-    'INVENTORY / I      List what you carry',
-    'HELP / ?           This message',
-    'RESTART            Start a new game',
-    '',
-    'TIPS',
-    '────────────────────────────────────────────',
-    '- Watch your OXYGEN — it drops every turn.',
-    '- Dark areas require a light source.',
-    '- The security robot is dangerous — carry your badge.',
-    '- Some items only work in specific locations.',
-  ].join('\n'),
-
-  // Death
-  dieOxygen:
-    'Your oxygen supply reaches zero. You slump to the floor as ' +
-    'darkness closes in.\n\n*** GAME OVER — YOU RAN OUT OF OXYGEN ***',
-
-  diePower:
-    'Station power collapses completely. Every light goes out. In the ' +
-    'crushing darkness you cannot survive.\n\n*** GAME OVER — POWER FAILURE ***',
-
-  dieRobot:
-    'The security robot catches you. Its weapons system activates. ' +
-    'You do not survive the encounter.\n\n*** GAME OVER — TERMINATED BY ROBOT ***',
-
-  dieSpace:
-    'You open the outer hatch without a spacesuit. The vacuum of space ' +
-    'is instantly fatal.\n\n*** GAME OVER — KILLED BY VACUUM ***',
-
-  // Win
-  win: [
-    'You slide the access card into the escape pod launch console.',
-    'Green lights cascade across the panel. The launch sequence initiates.',
-    '',
-    'With a tremendous roar the pod is ejected from Station Omega.',
-    '',
-    'Through the viewport you watch the crippled station recede into',
-    'the darkness of space. You have survived.',
-    '',
-    '*** CONGRATULATIONS — YOU ESCAPED FROM SPACE STATION OMEGA! ***',
-  ].join('\n'),
-
-  // Robot warnings
-  robotWarning1:
-    'ALERT: The security robot has spotted an unauthorized presence! ' +
-    'Leave this area immediately or face termination!',
-  robotWarning2:
-    'FINAL WARNING: The security robot is targeting you! ' +
-    'Leave NOW or you will be destroyed!',
-
-  // Dark rooms
-  darkNoLight:
-    'It is pitch dark. You cannot see anything. You need a light source to ' +
-    'explore this area safely.',
-  darkWithLight: '(Your flashlight illuminates the area.)',
-
-  // Transporter
-  transporterNoPower:
-    'The transporter platform is dark and silent. It requires full station ' +
-    'power to operate. Restore power first.',
-  transporterNoKey:
-    'The transporter control panel flashes: KEYCARD REQUIRED. You need an ' +
-    'authorization keycard to set a destination.',
-  transporterActivating:
-    'You insert the keycard. The platform hums to life. Destination locked...',
-  transporterArrival:
-    'In a flash of blue-white light you are transported to another part of ' +
-    'the station.',
-
-  // Power room
-  powerRestored:
-    'You install the power cell into the reactor coupling. A deep hum ' +
-    'vibrates through the floor. Station power rises to 75%. Emergency ' +
-    'lighting flares brighter throughout the station. The transporter is ' +
-    'now operational.',
-  powerAlreadyRestored: 'The power cell has already been installed in the reactor.',
-
-  // Bomb / deactivator
-  bombDeactivated:
-    'You aim the deactivator at the bomb and activate the override sequence. ' +
-    'The red light blinks rapidly — then goes dark. The bomb is safely ' +
-    'deactivated. A wave of relief washes over you.',
-  bombAlreadyDeactivated: 'The bomb has already been deactivated.',
-  bombNoBomb:
-    'There is no armed explosive device here.',
-  bombMustCarry:
-    'You need to be carrying the bomb to deactivate it, or use the deactivator ' +
-    'in the room where the bomb is located.',
-
-  // Escape pod
-  escapePodBombActive:
-    'The pod launch system detects an armed explosive on the station. ' +
-    'The launch is locked until the threat is neutralized. Deactivate the ' +
-    'bomb first.',
-  escapePodNoCard:
-    'The escape pod console reads: INSERT AUTHORIZED ACCESS CARD TO LAUNCH. ' +
-    'You do not have an access card.',
-  escapePodLaunching:
-    'You insert the access card...',
-
-  // Airlock
-  airlockSuitOk:
-    'Wearing your spacesuit, you open the outer hatch. The void of space ' +
-    'stretches before you. There is nothing to do out here — you return inside.',
-  airlockNoSuit:
-    'You reach for the outer hatch control but stop yourself. Without a ' +
-    'spacesuit, opening that hatch would be instantly fatal.',
-};
+const LOC_NAME = [
+  '',
+  'Mare Serenitatis',         //  1
+  'Posidonius Overlook',      //  2
+  'Darkness (Dawes/Plinius)', //  3
+  'Haemus Pass',              //  4
+  'Manilus Base',             //  5
+  'Mare Vaporum',             //  6
+  'Mt. Eudoxus Base',         //  7
+  'Aristoteles Crater',       //  8
+  'Lacus Somniorum',          //  9
+  'Burg Crater (soft)',       // 10
+  'Plato Crater Base',        // 11
+  'Before Shed',              // 12
+  'Shed Entrance',            // 13
+  'Eastern Darkness',         // 14
+  'Spacecraft Crash Site',    // 15
+  'Ship Airlock 1',           // 16
+  'Ship Airlock 2',           // 17
+  'Aft Cargo / Fuel',         // 18
+  'Engine Room',              // 19
+  'Lower Spacecraft',         // 20
+  'Control Room',             // 21
+  'Shed Interior',            // 22
+  'Ventilator Shaft',         // 23
+  'Ventilator Opening',       // 24
+  'Station Corridor',         // 25
+  'Station Corridor',         // 26
+  'Station Corridor',         // 27
+  'Station Corridor',         // 28
+  'Station Corridor',         // 29
+  'Infirmary',                // 30
+  'Recreation Room',          // 31
+  'Mess Hall',                // 32
+  'Sleeping Quarters',        // 33
+  'Storage Room',             // 34
+  'Control Center',           // 35
+  'Transporter Room',         // 36
+  'Laboratory',               // 37
+  'Hanger Area',              // 38
+  'Hanger Airlock',           // 39
+  'Suit Changing Area',       // 40
+  'Elevator (subsurface)',    // 41
+  'Elevator (surface)',       // 42
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DIRECTION TABLES
+// HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Normalise player input to a single-letter direction key
-const DIR_ALIASES = {
-  n: 'n', north: 'n',
-  s: 's', south: 's',
-  e: 'e', east:  'e',
-  w: 'w', west:  'w',
-  u: 'u', up:    'u',
-  d: 'd', down:  'd',
-};
+/** Locations that consume oxygen each turn (requires carrying oxygen module). */
+function needsOxygen(p) {
+  return (p >= 1 && p <= 18) || p === 38;
+}
 
-// Full display names for directions
-const DIR_DISPLAY = {
-  n: 'North', s: 'South', e: 'East', w: 'West', u: 'Up', d: 'Down',
-};
-
-// Opposite of each direction (used for safe dark-room backtrack)
-const DIR_OPPOSITE = {
-  n: 's', s: 'n', e: 'w', w: 'e', u: 'd', d: 'u',
-};
+/** Locations where a power supply is required to survive. */
+function needsPower(p) {
+  return (p >= 1 && p <= 21) || p === 38;
+}
