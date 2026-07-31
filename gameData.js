@@ -65,7 +65,7 @@ const T = [
   /* 29 */ 'Somewhere east of Mare Serenitatis.',
   /* 30 */ 'There is total darkness.',
   /* 31 */ 'At the crash site of a spacecraft.',
-  /* 32 */ 'The ship entrance is before you.',
+  /* 32 */ 'The ships entrance is south of you.',
   /* 33 */ 'At the center of Mare Imbrium.',
   /* 34 */ 'In the air lock chamber of the ship.',
   /* 35 */ 'In the aft cargo and fuel storage room.',
@@ -125,7 +125,7 @@ const M_INIT = [
   [12, 15,  7, 16,  0,  0, 19, 24],  // 11 East side of Mare Imbrium
   [ 0, 11,  0, 13,  0,  0, 25, 26],  // 12 Plato crater base (meteor shower W)
   [ 0, 16, 12, 22,  0,  0, 27, 28],  // 13 Before the metal shed (locked W)
-  [99, 99, 99, 99,  0,  0, 29, 30],  // 14 Dark area east (all exits=death initially)
+  [99, 99, 99,  9,  0,  0, 29, 30],  // 14 Dark area east (all exits=death initially) -- Changed to 9
   [11, 18,  1,  0,  0,  0, 31, 32],  // 15 Spacecraft crash site
   [17, 16,  7, 16,  0,  0, 33, 33],  // 16 Center of Mare Imbrium (wandering)
   [16, 17, 11, 17,  0,  0, 33, 33],  // 17 Center of Mare Imbrium (wandering)

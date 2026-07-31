@@ -560,8 +560,8 @@ function cmdGet(input) {
   if (i === 5)  { printOutput("You can't carry a robot!", 'msg-warn'); return; }
   if (i === 10) { printOutput("You can't get the message; it's on the terminal screen.", 'msg-warn'); return; }
 
-  // Carry limit: 4 items max (BASIC: c > 3)
-  if (GS.c >= 4) { printOutput("You can't carry any more!", 'msg-warn'); return; }
+  // Carry limit: 6 items max (BASIC: c > 3)
+  if (GS.c >= 6) { printOutput("You can't carry any more!", 'msg-warn'); return; }
 
   // Power supply: can only carry one at a time
   if (i === 11) {
