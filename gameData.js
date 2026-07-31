@@ -76,7 +76,7 @@ const T = [
   /* 40 */ 'into a large metal shaft.',
   /* 41 */ 'In a ventilator passage.',
   /* 42 */ 'At a ventilator opening. Through the',
-  /* 43 */ 'opening a lit passageway can be seen.',
+  /* 43 */ 'opening a lit passageway can be seen below.',
   /* 44 */ 'In a lighted space station corridor.',
   /* 45 */ 'In the space station infirmary.',
   /* 46 */ 'In the recreation room and library.',
@@ -107,6 +107,12 @@ const T = [
 //   • Loc 29 S = 38 (hanger) per the magazine listing; the Big Computer Games
 //     OCR read 30 (infirmary), which sent the player to the wrong room and
 //     made the hanger unreachable from the corridor.
+//   • Loc 24 → 25 is DOWN, not NORTH. The BASIC listing had the ventilator
+//     opening lead north into the corridor while the corridor led back UP
+//     (loc 25 U = 24, loc 35 U = 24), so the return trip was not reciprocal:
+//     pressing S from corridor 25 to "go back" walked the player deeper into
+//     the station (and into the robot). The opening sits above the station, so
+//     the player now drops DOWN into corridor 25 and climbs back UP to 24.
 // ─────────────────────────────────────────────────────────────────────────────
 
 //                    N    S    E    W    U    D   T1  T2
@@ -135,7 +141,7 @@ const M_INIT = [
   [ 0,  0,  0,  0,  0, 20, 37, 38],  // 21 Ship control room (BLAST here)
   [ 0,  0, 13,  0,  0, 23, 39, 40],  // 22 Shed interior
   [24,  0,  0,  0, 22,  0, 41, 41],  // 23 Ventilator shaft
-  [25, 23,  0,  0,  0,  0, 42, 43],  // 24 Ventilator opening
+  [ 0, 23,  0,  0,  0, 25, 42, 43],  // 24 Ventilator opening (D = drop into corridor 25)
   [27, 26, 33, 32, 24,  0, 44, 44],  // 25 Station corridor
   [25,  0, 30, 31,  0,  0, 44, 44],  // 26 Station corridor
   [34, 25, 41,  0,  0,  0, 44, 44],  // 27 Station corridor

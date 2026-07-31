@@ -29,44 +29,39 @@
 }
 
 html, body {
-  height: 100%;
+  min-height: 100%;
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-mono);
   font-size: var(--font-size);
   line-height: var(--line-height);
-  overflow: hidden;       /* the transcript scrolls, not the page */
+}
+
+body {
+  padding: 24px 12px 20px;   /* cushion so nothing touches the screen edge */
+  overflow-y: auto;
 }
 
 /* ── Game container ────────────────────────────────────────────────────────── */
 #game-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  gap: 18px;
   max-width: 1100px;
   margin: 0 auto;
-  border-left:  1px solid var(--border);
-  border-right: 1px solid var(--border);
 }
 
-/* ── HUD (header bar) ──────────────────────────────────────────────────────── */
+/* ── HUD (title bar — the title is the only thing on this line) ────────────── */
 #hud {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-  padding: 6px 12px;
-  background: #050f05;
+  padding: 0 4px 6px;
   border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
 }
 
 #hud-title {
-  font-size: 1.1em;
+  font-size: 1.9em;
   font-weight: bold;
   color: var(--green);
-  letter-spacing: 0.15em;
-  margin-right: 8px;
+  letter-spacing: 0.22em;
 }
 
 .hud-stat {
@@ -80,9 +75,7 @@ html, body {
 .hud-moves { color: var(--fg); }
 
 #hud-location-wrap {
-  flex: 1;
   min-width: 120px;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -107,51 +100,64 @@ html, body {
 .sys-btn:hover  { background: #1a1000; border-color: var(--amber); }
 .sys-btn:active { background: #2a1800; }
 
-/* ── Main area ─────────────────────────────────────────────────────────────── */
-#main-area {
+/* ── Section headings (CURRENT LOCATION / HISTORY) ────────────────────────── */
+.section-heading {
   display: flex;
-  flex: 1;
-  overflow: hidden;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 10px;
+  font-size: 0.85em;
+  color: var(--green);
+  letter-spacing: 0.16em;
+  background: #050f05;
+  border: 1px solid var(--border);
+  border-bottom: none;
 }
 
-/* ── Left column (location panel + transcript) ────────────────────────────── */
-#left-column {
+/* ── Current location section ─────────────────────────────────────────────── */
+#location-section {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-  border-right: 1px solid var(--border);
 }
 
-/* ── Current location panel (fixed / non-scrolling) ──────────────────────── */
 #location-panel {
-  flex-shrink: 0;
-  padding: 10px 14px 8px;
+  padding: 12px 14px;
   background: #030f03;
-  border-bottom: 2px solid var(--border);
+  border: 1px solid var(--border);
+}
+
+#loc-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #1a2e1a;
 }
 
 .loc-name {
-  font-size: 1em;
+  font-size: 1.25em;
   font-weight: bold;
   color: var(--cyan);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 4px;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
 }
 
 .loc-description {
   color: var(--fg);
-  font-size: 0.9em;
-  margin-bottom: 4px;
+  font-size: 0.95em;
+  margin-bottom: 6px;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .loc-items {
   color: #aaddaa;
-  font-size: 0.88em;
-  margin-bottom: 3px;
+  font-size: 0.9em;
+  margin-bottom: 4px;
 }
 
 .loc-item {
@@ -160,9 +166,9 @@ html, body {
 
 .loc-exits {
   color: var(--green-dim);
-  font-size: 0.85em;
+  font-size: 0.9em;
   letter-spacing: 0.05em;
-  margin-bottom: 3px;
+  margin-bottom: 8px;
 }
 
 .loc-resources {
@@ -171,29 +177,42 @@ html, body {
   letter-spacing: 0.04em;
 }
 
-/* ── Transcript wrap ──────────────────────────────────────────────────────── */
+/* Move pad / inventory / items-here live inside the location box */
+#loc-panels {
+  display: grid;
+  grid-template-columns: 160px 1fr 1fr;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #1a2e1a;
+}
+
+#loc-panels > section {
+  border: 1px solid #1a2e1a;
+  background: var(--panel-bg);
+  padding-bottom: 6px;
+  min-width: 0;
+}
+
+/* ── Command bar (quick actions + input) directly below the location box ──── */
+#command-bar {
+  border: 1px solid var(--border);
+  border-top: none;
+}
+
+/* ── Transcript wrap (HISTORY) ────────────────────────────────────────────── */
 #transcript-wrap {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-}
-
-.transcript-heading {
-  flex-shrink: 0;
-  padding: 3px 14px;
-  font-size: 0.75em;
-  color: var(--green-dim);
-  letter-spacing: 0.12em;
-  background: #050f05;
-  border-bottom: 1px solid #1a2e1a;
 }
 
 #transcript {
-  flex: 1;
+  height: 240px;
+  max-height: 32vh;
   overflow-y: auto;
   padding: 8px 14px;
   background: var(--bg);
+  border: 1px solid var(--border);
+  font-size: 0.9em;
 }
 
 /* Custom scrollbar */
@@ -239,12 +258,11 @@ html, body {
 /* ── Quick-action bar ──────────────────────────────────────────────────────── */
 #quick-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  padding: 5px 14px;
+  padding: 6px 14px;
   background: var(--panel-bg);
-  border-top: 1px solid #1a2e1a;
-  flex-shrink: 0;
 }
 .qa-label { color: var(--green-dim); font-size: 0.8em; }
 .qa-btn {
@@ -292,10 +310,9 @@ html, body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
+  padding: 8px 14px;
   background: var(--input-bg);
   border-top: 1px solid var(--border);
-  flex-shrink: 0;
 }
 
 #input-prompt {
@@ -323,21 +340,6 @@ html, body {
   cursor: not-allowed;
 }
 
-/* ── Sidebar ───────────────────────────────────────────────────────────────── */
-#sidebar {
-  display: flex;
-  flex-direction: column;
-  width: 180px;
-  flex-shrink: 0;
-  background: var(--panel-bg);
-  overflow-y: auto;
-  padding: 8px 0;
-  gap: 0;
-}
-
-#sidebar::-webkit-scrollbar        { width: 4px; }
-#sidebar::-webkit-scrollbar-thumb  { background: var(--green-dim); }
-
 .panel-heading {
   padding: 4px 10px 3px;
   font-size: 0.78em;
@@ -349,22 +351,14 @@ html, body {
 
 /* ── Direction pad ─────────────────────────────────────────────────────────── */
 #direction-pad {
-  padding: 8px 8px 4px;
-  border-bottom: 1px solid #1a2e1a;
-}
-.dir-label {
-  font-size: 0.78em;
-  color: var(--green);
-  letter-spacing: 0.12em;
-  text-align: center;
-  margin-bottom: 6px;
+  padding-bottom: 8px;
 }
 .dir-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 3px;
   max-width: 120px;
-  margin: 0 auto;
+  margin: 8px auto 0;
 }
 .dir-btn {
   padding: 6px 4px;
@@ -399,7 +393,6 @@ html, body {
 /* ── Inventory panel ───────────────────────────────────────────────────────── */
 #inventory-panel, #room-items-panel {
   padding: 0 0 6px 0;
-  border-bottom: 1px solid #1a2e1a;
 }
 .inv-capacity {
   padding: 2px 10px;
@@ -553,17 +546,17 @@ html, body {
 .settings-start-btn:hover { background: #0d1a0d; }
 
 /* ── Responsive: narrow screens ────────────────────────────────────────────── */
-@media (max-width: 600px) {
-  #sidebar {
-    width: 130px;
-  }
+@media (max-width: 700px) {
   :root {
     --font-size: 12px;
   }
-  #hud-title { display: none; }
+  #loc-panels {
+    grid-template-columns: 1fr 1fr;
+  }
+  #direction-pad { grid-column: 1 / -1; }
 }
 
 @media (max-width: 420px) {
-  #sidebar { display: none; }
-  #main-area { flex-direction: column; }
+  body { padding: 16px 8px; }
+  #loc-panels { grid-template-columns: 1fr; }
 }

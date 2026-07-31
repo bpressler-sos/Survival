@@ -57,112 +57,107 @@
   <!-- ═══════════════════════════════════════════════════════ HUD ══ -->
   <header id="hud">
     <div id="hud-title">SURVIVAL</div>
-
-    <div id="hud-stats">
-      <span id="hud-oxygen"  class="hud-stat">O₂: --</span>
-      <span id="hud-power"   class="hud-stat">PWR: --</span>
-      <span id="hud-moves"   class="hud-stat hud-moves">TIME: 0 min</span>
-    </div>
-
-    <div id="hud-location-wrap">
-      <span class="hud-label">LOCATION:</span>
-      <span id="hud-location">---</span>
-    </div>
-
-    <button id="btn-restart" class="sys-btn" title="Restart Game">RESTART</button>
   </header>
 
-  <!-- ═══════════════════════════════════════════════════ MAIN AREA ══ -->
-  <div id="main-area">
+  <!-- ═══════════════════════════════════ CURRENT LOCATION SECTION ══ -->
+  <section id="location-section" aria-label="Current location">
+    <div class="section-heading">
+      <span>CURRENT LOCATION</span>
+      <button id="btn-restart" class="sys-btn" title="Restart Game">RESTART</button>
+    </div>
 
-    <!-- ─────────────────────────── LEFT COLUMN ── -->
-    <div id="left-column">
+    <div id="location-panel">
 
-      <!-- ── Current location panel (fixed, always visible) ── -->
-      <div id="location-panel">
-        <div id="loc-name" class="loc-name">---</div>
-        <div id="loc-description" class="loc-description"></div>
-        <div id="loc-items" class="loc-items"></div>
-        <div id="loc-exits" class="loc-exits">Exits: ---</div>
-        <div id="loc-resources" class="loc-resources"></div>
+      <!-- Status readouts (oxygen / power / time / location) -->
+      <div id="loc-status">
+        <span id="hud-oxygen" class="hud-stat">O₂: --</span>
+        <span id="hud-power"  class="hud-stat">PWR: --</span>
+        <span id="hud-moves"  class="hud-stat hud-moves">TIME: 0 min</span>
+        <span id="hud-location-wrap">
+          <span class="hud-label">LOCATION:</span>
+          <span id="hud-location">---</span>
+        </span>
       </div>
 
-      <!-- ── History / transcript ── -->
-      <div id="transcript-wrap">
-        <div class="transcript-heading">HISTORY</div>
-        <div id="transcript" role="log" aria-live="polite" aria-label="Game output"></div>
+      <!-- Room description -->
+      <div id="loc-name" class="loc-name">---</div>
+      <div id="loc-description" class="loc-description"></div>
+      <div id="loc-items" class="loc-items"></div>
+      <div id="loc-exits" class="loc-exits">Exits: ---</div>
 
-        <!-- Quick-action buttons sit above the input line -->
-        <div id="quick-actions">
-          <span class="qa-label">QUICK:</span>
-          <button id="btn-look" class="qa-btn" title="Look around current location">LOOK</button>
-          <button id="btn-inv"  class="qa-btn" title="Show inventory">INV</button>
-          <button id="btn-take" class="qa-btn" title="Pick up an item from the room">TAKE</button>
-          <button id="btn-use"  class="qa-btn" title="Use an item (for obstacles)">USE</button>
-          <button id="btn-drop" class="qa-btn" title="Drop an item from your inventory">DROP</button>
-        </div>
+      <!-- Movement / inventory / room items all live with the current state -->
+      <div id="loc-panels">
 
-        <!-- Command input -->
-        <div id="input-area">
-          <span id="input-prompt">&gt;</span>
-          <input
-            type="text"
-            id="command-input"
-            autocomplete="off"
-            autocorrect="off"
-            autocapitalize="off"
-            spellcheck="false"
-            aria-label="Command input"
-            placeholder="type a command or use the buttons…"
-          >
-        </div>
-      </div><!-- /transcript-wrap -->
+        <!-- Direction pad -->
+        <section id="direction-pad" aria-label="Movement controls">
+          <div class="panel-heading">MOVE</div>
+          <div class="dir-grid">
+            <div class="dir-corner"></div>
+            <button id="btn-n" class="dir-btn" data-dir="n" aria-label="North">N</button>
+            <div class="dir-corner"></div>
 
-    </div><!-- /left-column -->
+            <button id="btn-w" class="dir-btn" data-dir="w" aria-label="West">W</button>
+            <div class="dir-center">&#x2022;</div>
+            <button id="btn-e" class="dir-btn" data-dir="e" aria-label="East">E</button>
 
-    <!-- ─────────────────────────────────── SIDEBAR ── -->
-    <aside id="sidebar">
+            <div class="dir-corner"></div>
+            <button id="btn-s" class="dir-btn" data-dir="s" aria-label="South">S</button>
+            <div class="dir-corner"></div>
 
-      <!-- Direction pad -->
-      <section id="direction-pad" aria-label="Movement controls">
-        <div class="dir-label">MOVE</div>
-        <div class="dir-grid">
-          <!--  NW placeholder | N  | NE placeholder  -->
-          <div class="dir-corner"></div>
-          <button id="btn-n" class="dir-btn" data-dir="n" aria-label="North">N</button>
-          <div class="dir-corner"></div>
+            <button id="btn-u" class="dir-btn dir-ud" data-dir="u" aria-label="Up">UP</button>
+            <div class="dir-corner"></div>
+            <button id="btn-d" class="dir-btn dir-ud" data-dir="d" aria-label="Down">DN</button>
+          </div>
+        </section>
 
-          <button id="btn-w" class="dir-btn" data-dir="w" aria-label="West">W</button>
-          <div class="dir-center">&#x2022;</div>
-          <button id="btn-e" class="dir-btn" data-dir="e" aria-label="East">E</button>
+        <!-- Inventory -->
+        <section id="inventory-panel" aria-label="Inventory">
+          <div class="panel-heading">INVENTORY</div>
+          <div id="inv-capacity" class="inv-capacity">0 / 6 items</div>
+          <ul id="inventory-list" class="item-list"></ul>
+        </section>
 
-          <div class="dir-corner"></div>
-          <button id="btn-s" class="dir-btn" data-dir="s" aria-label="South">S</button>
-          <div class="dir-corner"></div>
+        <!-- Room items -->
+        <section id="room-items-panel" aria-label="Items in room">
+          <div class="panel-heading">ITEMS HERE</div>
+          <ul id="room-items-list" class="item-list"></ul>
+        </section>
 
-          <!-- Up / Down on a second row -->
-          <button id="btn-u" class="dir-btn dir-ud" data-dir="u" aria-label="Up">UP</button>
-          <div class="dir-corner"></div>
-          <button id="btn-d" class="dir-btn dir-ud" data-dir="d" aria-label="Down">DN</button>
-        </div>
-      </section>
+      </div><!-- /loc-panels -->
+    </div><!-- /location-panel -->
 
-      <!-- Inventory -->
-      <section id="inventory-panel" aria-label="Inventory">
-        <div class="panel-heading">INVENTORY</div>
-        <div id="inv-capacity" class="inv-capacity">0 / 6 items</div>
-        <ul id="inventory-list" class="item-list"></ul>
-      </section>
+    <!-- Quick-action buttons and command entry, directly below the box -->
+    <div id="command-bar">
+      <div id="quick-actions">
+        <span class="qa-label">QUICK:</span>
+        <button id="btn-look" class="qa-btn" title="Look around current location">LOOK</button>
+        <button id="btn-inv"  class="qa-btn" title="Show inventory">INV</button>
+        <button id="btn-take" class="qa-btn" title="Pick up an item from the room">TAKE</button>
+        <button id="btn-use"  class="qa-btn" title="Use an item (for obstacles)">USE</button>
+        <button id="btn-drop" class="qa-btn" title="Drop an item from your inventory">DROP</button>
+      </div>
 
-      <!-- Room items -->
-      <section id="room-items-panel" aria-label="Items in room">
-        <div class="panel-heading">ITEMS HERE</div>
-        <ul id="room-items-list" class="item-list"></ul>
-      </section>
+      <div id="input-area">
+        <span id="input-prompt">&gt;</span>
+        <input
+          type="text"
+          id="command-input"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          aria-label="Command input"
+          placeholder="type a command or use the buttons…"
+        >
+      </div>
+    </div><!-- /command-bar -->
+  </section><!-- /location-section -->
 
-    </aside><!-- /sidebar -->
-
-  </div><!-- /main-area -->
+  <!-- ═══════════════════════════════════════════════ HISTORY ══ -->
+  <section id="transcript-wrap" aria-label="History">
+    <div class="section-heading transcript-heading">HISTORY</div>
+    <div id="transcript" role="log" aria-live="polite" aria-label="Game output"></div>
+  </section>
 
 </div><!-- /game-container -->
 
