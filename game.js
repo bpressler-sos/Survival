@@ -257,12 +257,14 @@ function updateLocationPanel() {
   const exits = DNAMES.filter((_, i) => row && row[i] > 0 && row[i] !== 99);
   elLocExits.textContent = exits.length ? 'Exits: ' + exits.join('  ') : 'Exits: none';
 
-  // Resources
-  const parts = [];
-  if (GS.f0 === 1) parts.push('O\u2082: ' + GS.t2 + ' min');
-  if (carrying(11)) parts.push('PWR: ' + GS.p1 + 'u');
-  if (carrying(14)) parts.push('PKT: ' + GS.p2 + 'u');
-  elLocRes.textContent = parts.join('   ');
+  // Resources (optional element — the status line above normally shows these)
+  if (elLocRes) {
+    const parts = [];
+    if (GS.f0 === 1) parts.push('O\u2082: ' + GS.t2 + ' min');
+    if (carrying(11)) parts.push('PWR: ' + GS.p1 + 'u');
+    if (carrying(14)) parts.push('PKT: ' + GS.p2 + 'u');
+    elLocRes.textContent = parts.join('   ');
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1038,6 +1040,7 @@ function startGame() {
   initGame();
   showInstructions();
   beginTurn();
+  if (elInput) elInput.focus();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1091,6 +1094,7 @@ window.addEventListener('load', () => {
     btn.addEventListener('click', () => {
       const dir = btn.dataset.dir;
       if (dir in DIR_MAP) processInput(dir);
+      elInput.focus();
     });
   });
 
@@ -1113,8 +1117,8 @@ window.addEventListener('load', () => {
     elInput.value = 'drop ';
     elInput.focus();
   });
-  if (btnLook) btnLook.addEventListener('click', () => processInput('look'));
-  if (btnInv)  btnInv.addEventListener('click',  () => processInput('inventory'));
+  if (btnLook) btnLook.addEventListener('click', () => { processInput('look'); elInput.focus(); });
+  if (btnInv)  btnInv.addEventListener('click',  () => { processInput('inventory'); elInput.focus(); });
 
   // Restart button
   const btnRestart = document.getElementById('btn-restart');
