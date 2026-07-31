@@ -68,21 +68,19 @@
 
     <div id="location-panel">
 
-      <!-- Status readouts (oxygen / power / time / location) -->
-      <div id="loc-status">
-        <span id="hud-oxygen" class="hud-stat">O₂: --</span>
-        <span id="hud-power"  class="hud-stat">PWR: --</span>
-        <span id="hud-moves"  class="hud-stat hud-moves">TIME: 0 min</span>
-        <span id="hud-location-wrap">
-          <span class="hud-label">LOCATION:</span>
-          <span id="hud-location">---</span>
-        </span>
-      </div>
-
       <!-- Room description -->
       <div id="loc-name" class="loc-name">---</div>
       <div id="loc-description" class="loc-description"></div>
-      <div id="loc-items" class="loc-items"></div>
+
+      <!-- Alerts for what is happening right here (obstacles, events) -->
+      <div id="loc-alert" class="loc-alert" role="status" aria-live="assertive"></div>
+
+      <!-- Items in this room, directly below the location text -->
+      <div class="loc-items-block">
+        <div class="loc-items-label">ITEMS HERE:</div>
+        <div id="loc-items" class="loc-items"></div>
+      </div>
+
       <div id="loc-exits" class="loc-exits">Exits: ---</div>
 
       <!-- Movement / inventory / room items all live with the current state -->
@@ -117,10 +115,23 @@
           <ul id="inventory-list" class="item-list"></ul>
         </section>
 
-        <!-- Room items -->
-        <section id="room-items-panel" aria-label="Items in room">
-          <div class="panel-heading">ITEMS HERE</div>
-          <ul id="room-items-list" class="item-list"></ul>
+        <!-- Vitals -->
+        <section id="vitals-panel" aria-label="Vitals">
+          <div class="panel-heading">VITALS</div>
+          <ul class="vitals-list">
+            <li class="vitals-row">
+              <span class="vitals-label">TIME</span>
+              <span id="hud-moves" class="hud-stat hud-moves">0 min</span>
+            </li>
+            <li class="vitals-row">
+              <span class="vitals-label">O₂</span>
+              <span id="hud-oxygen" class="hud-stat">---</span>
+            </li>
+            <li class="vitals-row">
+              <span id="hud-power-label" class="vitals-label">PWR</span>
+              <span id="hud-power" class="hud-stat">---</span>
+            </li>
+          </ul>
         </section>
 
       </div><!-- /loc-panels -->

@@ -74,19 +74,6 @@ body {
 
 .hud-moves { color: var(--fg); }
 
-#hud-location-wrap {
-  min-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.hud-label   { color: var(--green-dim); font-size: 0.85em; }
-#hud-location {
-  color: var(--cyan);
-  font-size: 0.9em;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
 .sys-btn {
   padding: 3px 10px;
   background: transparent;
@@ -127,16 +114,6 @@ body {
   border: 1px solid var(--border);
 }
 
-#loc-status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 18px;
-  padding-bottom: 8px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid #1a2e1a;
-}
-
 .loc-name {
   font-size: 1.25em;
   font-weight: bold;
@@ -154,6 +131,28 @@ body {
   word-break: break-word;
 }
 
+/* ── Alert message shown right under the location description ─────────────── */
+.loc-alert:not(:empty) {
+  margin: 6px 0 8px;
+  padding: 6px 10px;
+  font-size: 0.95em;
+  border: 1px solid currentColor;
+  background: #0f0a00;
+}
+.loc-alert.msg-bad:not(:empty)  { background: #150404; }
+.loc-alert.msg-good:not(:empty) { background: #04150a; }
+
+/* ── Items in the current room, directly under the location text ──────────── */
+.loc-items-block {
+  margin-bottom: 6px;
+}
+
+.loc-items-label {
+  color: var(--green);
+  font-size: 0.78em;
+  letter-spacing: 0.12em;
+}
+
 .loc-items {
   color: #aaddaa;
   font-size: 0.9em;
@@ -162,6 +161,13 @@ body {
 
 .loc-item {
   color: #aaddaa;
+}
+.loc-item.item-get { cursor: pointer; }
+.loc-item.item-get:hover { color: var(--cyan); }
+.loc-item.item-noget { color: var(--green-dim); }
+.loc-item-none {
+  color: #2a4a2a;
+  font-style: italic;
 }
 
 .loc-exits {
@@ -391,7 +397,7 @@ body {
 .dir-corner { /* empty placeholder cells */ }
 
 /* ── Inventory panel ───────────────────────────────────────────────────────── */
-#inventory-panel, #room-items-panel {
+#inventory-panel, #vitals-panel {
   padding: 0 0 6px 0;
 }
 .inv-capacity {
@@ -415,6 +421,25 @@ body {
 }
 .inv-item { color: #aaddaa; }
 .room-item { color: var(--cyan); }
+
+/* ── Vitals panel ──────────────────────────────────────────────────────────── */
+.vitals-list {
+  list-style: none;
+  padding: 4px 10px;
+}
+.vitals-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0;
+  border-bottom: 1px solid #0a0f0a;
+}
+.vitals-label {
+  color: var(--green-dim);
+  font-size: 0.78em;
+  letter-spacing: 0.1em;
+}
 
 /* ── Animations ────────────────────────────────────────────────────────────── */
 @keyframes blink {
