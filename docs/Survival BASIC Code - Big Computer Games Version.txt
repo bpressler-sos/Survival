@@ -1,0 +1,617 @@
+   1 rem
+   5 rem Moon Survival Program
+   6 rem Written by Stewart Rush 3/12/81
+   8 rem
+  10 dim t$(60)
+  20 dim m(42,8)
+  30 dim o(14)
+  40 dim c$(3)
+  50 dim d$(1)
+  60 rem
+  70 rem Initialize text and move matrices
+  80 rem
+  90 print "Welcome to the game Survival. Would you like instructions?"
+ 100 print
+ 110 input d$
+ 120 if lcase$(ds) = "y" then gosub 5050
+ 122 for i = 1 to 14
+ 124     read (i)
+ 126 next i
+ 130 for i = 1 to 60
+ 140     read t$(i)
+ 150 next i
+ 160 for i = 1 to 42
+ 170     for j = 1 to 8
+ 180         read m(i, j)
+ 190     next j
+ 200 next i
+ 205 restore
+ 210 rem
+ 225 rem Program variable definition
+ 235 rem p  = current position      f0 = oxygen in use
+ 240 rem t1 = current elapsed time  f1 = open shed
+ 250 rem t2 = oxygen remaining      f2 = meteor shower
+ 260 rem                            f3 = laser deflected
+ 265 rem v  = no, of computer reads f4 = illuminator on
+ 270 rem p1 = pwr in power unit     f5 = deactivatior exposed
+ 275 rem p2 = pwr in power pack     f7 = bomb deactivated
+ 280 rem c  = no. of items carried  f9 = oxygen req'd in station
+ 290 rem
+ 320 let p = 1
+ 330 let c = 2
+ 340 let t1 = 0
+ 350 let t2 = 105
+ 360 let p1 = 230
+ 370 let p2 = 50
+ 380 let v = 0
+ 390 let f0 = 1
+ 570 let f1 = 0
+ 580 let f2 = 0
+ 585 let f3 = 0
+ 590 let f4 = 0
+ 595 let f5 = 8
+ 600 let f7 = 0
+ 610 let f9 = 8
+ 620 rem
+ 630 rem Display current status and location info
+ 640 rem
+ 650 print "Elapsed time: "; t1; "minutes"
+ 660 if o(11) = 99 then print"power unit: "; p1: "units"
+ 670 if o(14) = 99 then print"power pack: "; p2; "units"
+ 680 let t1 = t1 + 5
+ 690 if o(11) = 99 and p1 > 0 then let p1 = p1 - 5
+ 700 if o(14) = 99 and p2 > 0 then let p2 = p2 - 5
+ 710 if o(11) = 99 and p1 = 0 then goto 3680
+ 720 if o(14) = 99 and p2 = 0 then goto 3680
+ 730 if t1 > 400 then goto 2960
+ 740 if t1 > 350 then goto 3840
+ 750 if t1 > 200 then goto 3740
+ 760 if f0 =   1 then let t2 = t2 - 5
+ 770 if t2 <   0 then let t2 = 0
+ 780 if f0 =   0 then goto 800
+ 790 if t2 >   0 then goto 840
+ 800 if f9 =   0 then goto 820
+ 810 if p  >  21 then goto 2900
+ 820 if p  <  18 then goto 2900
+ 830 if p  =  38 then goto 1700
+ 840 if p  =  38 then goto 3590
+ 850 if f0 =   1 then print "Oxygen remaining: "; t2; " minutes"
+ 860 print "Present location status:"
+ 870 for i = m(p, 7) to m(p, 8)
+ 880     print t$(i)
+ 890 next i
+ 900 print "##"
+ 910 rem
+ 920 rem Display any objects present
+ 930 rem
+ 940 if p = 2 then goto 1920
+ 950 for i = 1 to 14
+ 960     if o(i) <> p then goto 990
+ 970     gosub 4410
+ 980     print "There is "; b$; " here."
+ 990 next i
+1000 goto 2000
+1010 rem
+1020 rem Read and process keyboard response
+1030 rem
+1040 input bs
+1050 let i = 0
+1060 if len(b$) <> 1 then goto 1320
+1065 let b$ = lcase$(b$)
+1070 if b$ = "n"     then let i = 1
+1080 if b$ = "s"     then let 1 = 2
+1090 if b$ = "e"     then let 1 = 3
+1100 if b$ = "w"     then let 1 = 4
+1110 if b$ = "u"     then let 1 = 5
+1120 if b$ = "d"     then let 1 = 6
+1120 if b$ = "q"     then goto 9999
+1140 if i = 0        then goto 1570
+1150 if m(p, i) =  0 then goto 1270
+1160 if m(p, i) = 99 then goto 2940
+1170 let q = m(p, i)
+1180 if p = 12       then goto 3060
+1190 if p = 13       then goto 3180
+1200 if p = 22       then goto 3310
+1210 if p = 23       then goto 3420
+1220 if p = 29       then goto 3470
+1230 let r = p
+1240 let p = q
+1260 goto 650
+1270 print "You can't go in that direction"
+1280 goto 1040
+1290 rem
+1300 rem Process 2 or more character commands
+1310 rem
+1320 let c$ = lcase$(b$)
+1321 let c$ = left$(c$, 3)
+1330 if c$ = "loo" then goto  650
+1340 if c$ = "des" then goto  650
+1350 if c$ = "get" then goto 2190
+1360 if c$ = "tak" then goto 2190
+1370 if c$ = "kee" then goto 2190
+1380 if c$ = "dro" then goto 2580
+1390 if c$ = "lea" then goto 2580
+1400 if c$ = "put" then goto 2580
+1410 if c$ = "inv" then goto 2780
+1420 if c$ = "qui" then goto 9999
+1430 if c$ = "end" then goto 9999
+1440 if c$ = "tra" then goto 1750
+1450 if c$ = "dig" then goto 1860
+1460 if c$ = "fue" then goto 4030
+1480 if c$ = "rea" then goto 4250
+1490 if c$ = "dea" then goto 3890
+1500 if c$ = "bla" then goto 4110
+1510 if c$ = "up"  then goto 1640
+1520 if c$ = "dow" then goto 1640
+1530 if c$ = "nor" then goto 1640
+1540 if c$ = "sou" then goto 1640
+1550 if c$ = "eas" then goto 1640
+1560 if c$ = "wes" then goto 1640
+1570 print "invalid command!"
+1580 goto 1040
+1590 print "I can't process your request!"
+1600 goto 1040
+1640 d$ = b$
+1650 b$ = d$
+1660 goto 1070
+1670 rem
+1680 rem Process entry to hanger from air lock
+1690 rem
+1700 if r <> 39 then goto 2990
+1710 goto 840
+1720 rem
+1730 rem Process transport command
+1740 rem
+1750 if p <> 36   then goto 1000
+1760 if o(b) = 99 then goto 1590
+1770 let p = o(8)
+1780 print "beaming in progress."
+1790 goto 650
+1800 if p <> o(8) then goto 1590
+1810 let p = 36
+1820 goto 1780
+1830 rem
+1846 rem Process dig command
+1850 rem
+1860 if p <> 10 then goto 1590
+1870 let o(9) = 10
+1880 goto 940
+1890 rem
+1900 rem Drop illuminator if at overlook
+1910 rem
+1920 if o(4) <> 99 then goto 950
+1930 let o(4) = 100
+1940 print "You dropped your illuminator!"
+1950 print "You cannot retrieve it."
+1960 goto 950
+1970 rem
+1980 rem Process robot
+1990 rem
+2000 if o(5)  = 28 then let o(5) = 35
+2010 if o(5)  = 42 then let o(5) = 28
+2020 if o(5)  = 41 then let o(5) = 42
+2030 if o(5)  = 27 then let o(5) = 41
+2040 if o(5)  = 25 then let o(5) = 27
+2050 if o(5) <> 35 then goto 2090
+2060 if p    <> 28 then goto 1010
+2070 let m(28, 1) = 35
+2080 goto 1019
+2090 if o(5) <> 32 then goto 1010
+2100 if p    <> 32 then goto 1010
+2110 let o(5) = 25
+2120 if o(13) = 99 then goto 1010
+2130 print "Robot fails to recognize you."
+2140 print "Fires a phasor weapon at you!"
+2150 goto 2980
+2160 rem
+2170 rem Process get or take command
+2180 rem
+2190 gosub 4590
+2200 if i > 0     then goto 2260
+2210 ir i < 0     then goto 2240
+2220 print "I don't recognize ";mid$(b$, j + 1); "."
+2230 goto 1040
+2240 print "What item?"
+2250 goto 1040
+2260 if o(i) <> p then goto 2370
+2270 if c > 3     then goto 2390
+2200 if i = 5     then goto 2410
+2290 if i = 10    then goto 2430
+2300 if i = 11    then goto 2460
+2310 if i = 14    then goto 2490
+2320 let c = c + 1
+2330 let o(i) = 99
+2340 if i = 3     then let f0 = 1
+2350 print "O.k."
+2360 goto 1040
+2370 print "There is no "; mid$(b$, j + 1); "here!"
+2380 goto 1040
+2390 print "You can't carry any more!"
+2400 goto 1040
+2410 print "You can't carry a robot!"
+2420 goto 1040
+2430 print "You can't get the message, it`s on the terminal screen."
+2440 print ""
+2450 goto 1040
+2460 if o(14) = 99 then goto 2520
+2470 o(11) = 99
+2480 goto 2320
+2490 if o(11) = 99 then goto 2520
+2500 let o(14) = 99
+2510 goto 2320
+2520 print "You can't have more than one power supply"
+2530 print
+2540 goto 1040
+2550 rem
+2560 rem Process drop or leave command
+2570 rem
+2580 gosub 4590
+2590 if i > 0 then goto 2620
+2600 if i < 0 then goto 2240
+2610 goto 2220
+2620 if o(1) <> 99 then goto 2690
+2630 let c = c - 1
+2640 let o(i) = p
+2650 if i =  3 then let f0 = 0
+2660 if i = 11 then goto 2710
+2670 if i = 14 then goto 2710
+2680 goto 2350
+2690 print "You don't have "; str(B$, j + 1); "!"
+2700 goto 1040
+2710 if p < 22 then goto 2870
+2720 if p = 38 then goto 2870
+2730 if f9 = 1 then goto 2870
+2740 goto 2350
+2750 rem
+2760 rem Process inventory command
+2770 rem
+2780 for i = 1 to 14
+2790      if o(i) <> 99 then goto 2820
+2800      gosub 4410
+2810      print " You have "; b$; "."
+2820 next i
+2830 goto 1040
+2840 rem
+2850 rem Program termination processing
+2860 rem
+2878 print "You have no power or power pack."
+2880 print "You have frozen to death."
+2890 goto 2990
+2900 print "Oxygen required here. None available."
+2910 goto 2980
+2920 print "A nuclear detonation has just occurred."
+2930 goto 2980
+2940 print "You have fallen to your death."
+2950 goto 2980
+2952 print "You have been zapped by the laser."
+2954 goto 2980
+2960 print "The moon base has just been destroyed by a large asteroid."
+2980 print "You have failed to survive."
+2990 print "Do you wish to try again?"
+3000 input d$
+3010 if lcase$(d$) = "y" then goto 122
+3020 goto 9999
+3030 rem
+3040 rem Process meteor shower
+3050 rem
+3060 if m(p, i) <> 13 then goto 1230
+3070 if f2 = 1 then goto 1230
+3080 print "There is a meteor shower."
+3090 print "Your space suit has developed a leak..."
+3100 gosub 4890
+3110 if i <> 2 then goto 2980
+3120 print "Your suit is now scaled."
+3130 let f2 = 1
+3140 goto 1230
+3150 rem
+3160 rem Process locked shed
+3170 rem
+3180 if m(p, i) <> 22 then goto 1230
+3190 if f1 = 1        then goto 1230
+3200 print "The shed is locked!"
+3210 gosub 4890
+3220 if 1 <> 1 then goto 3260
+3230 print "You are in the shed air lock."
+3240 let f1 = 1
+3250 goto 1230
+3260 print "Your attempt fails "
+3270 goto 1040
+3280 rem
+3290 rem Process dare ventilator shaft
+3300 rem
+3310 if m(p,i) <> 23 then goto 1230
+3320 if f4 = 1       then goto 1230
+3330 print "It is dangerous to proceed in the dark"
+3340 gosub 4890
+3350 if i <> 4       then goto 2940
+3360 print "the shaft is now illuminated."
+3370 let f4 = 1
+3380 goto 1230
+3390 rem
+3400 rem Process shaft with no illumination
+3410 rem
+3420 if o(4) <> 99 then goto 2940
+3430 goto 1230
+3440 rem
+3450 rem Process laser beam
+3460 rem
+3470 if m(p.i) <> 37 then goto 1230
+3480 if f3 = 1       then goto 1230
+3490 print "There is a laser beam here, passage not possible with beam present."
+3510 gosub 4890
+3520 if i <> 12 then goto 2952
+3530 print "the beam is now deflected."
+3540 let f3 = 1
+3550 goto 1230
+3560 rem
+3570 rem Process blown seal in space station
+3580 rem
+3590 if r <> 29 then goto 850
+3600 if f9 = 1 then goto 850
+3610 let f9 = 1
+3620 print "you have just blown the air seal in the space station."
+3640 goto 850
+3650 rem
+3660 rem Power required testing
+3670 rem
+3680 if p < 22 then goto 2870
+3690 if f9 = 1 then goto 2870
+3700 goto 730
+3710 rem
+3720 rem Expose deactivator
+3730 rem
+3740 if f5 = 1 then goto 760
+3760 let m(2, 8)  = m(2, 7) + 1
+3770 let m(14.8)  = m(14, 7)
+3780 let m(14, 4) = 2
+3790 let f5 = 1
+3800 goto 760
+3810 rem
+3820 rem Detonate bomb
+3830 rem
+3840 goto 760
+3860 rem
+3870 rem Deactivate bomb
+3880 rem
+3890 if o(6) <> 99 then 3940
+3900 if o(7) <> 99 then 3980
+3910 let 71 = 1
+3920 print "Bomb is now deactivated."
+3930 goto 1040
+3940 print "You have nothing to do it with!"
+3950 goto 1040
+3960 print "There is nothing to do it to!"
+3970 goto 1040
+3990 print "You can't do it from here!"
+3990 goto 1040
+4000 rem
+4010 rem Fuel rocket
+4020 rem
+4030 if p <> 19    then goto 3980
+4040 if o(9) <> 99 then goto 3940
+4050 let o(9) = 984
+4060 print "Fuel is now loaded."
+4070 goto 1040
+4080 rem
+4090 rem Blastoff processing
+4100 rem
+4110 if p <> 21    then goto 3980
+4120 if o(9) <> 98 then goto 4200
+4130 if f7 = 1     then goto 4160
+4140 print "Repairs not yet complete."
+4150 goto 1040
+4160 print "Congratulations. You nave just blasted off"
+4170 print "and are on your way to earth."
+4180 print "Your escape time: "; t1; "minutes."
+4190 goto 2990
+4200 print "Your space craft has no fuel!"
+4210 goto 1040
+4220 rem
+4230 rem Computer readout processing
+4240 rem
+4230 if p <> 35 then goto 3980
+4260 gosub 4590
+4270 if i <> 10 then goto 3960
+4280 if v1 <> 0 then goto 4320
+4290 print "Bomb deactivator located somewhere east of space station,"
+4300 print "on moon's surface."
+4310 goto 4360
+4320 if v <> 1 then goto 4350
+4330 print "Local fuel source: dilithium crystal."
+4340 hoto 4360
+4350 print "Dilithium found in soft surfaces."
+4360 if f7 = 1 then print "Spacecraft repairs completed."
+4365 let v = v + 1
+4370 goto 1040
+4300 rem
+4390 rem Subroutine to describe items at location
+4400 rem
+4410 if i =  1 then let b$ = "an electronic key"
+4420 if i =  2 then let b$ = "sealent"
+4430 if i =  3 then let b$ = "an oxygen module"
+4440 if i =  4 then let b$ = "an illuminator"
+4450 if i =  5 then let bs = "a robot"
+4460 if i =  6 then let b$ = "a deactivator"
+4470 if i =  7 then let b$ = "a nuclear bomb"
+4480 if i =  8 then let b$ = "a transporter unit"
+4490 if i =  9 then let b$ = "dilithium crystals"
+4500 if i = 10 then let b$ = "a computer message"
+4510 if i = 11 then let b$ = "a power unit 4520"
+4520 if i = 12 then let b$ = "a mirror"
+4330 if i = 13 then let b$ = "a coded badge"
+4540 if i = 14 then let b$ = "a power pack"
+4550 return
+4560 rem
+4570 rem Subroutine to convert an item to a numeric value
+4580 rem
+4590 for j = 1 to len(b$)
+4600     if mid$(b$, j, 1) = " " then goto 4640
+4610 next j
+4620 i = -1
+4630 return
+4640 c$ = lcase$(mid$(B$, j + 1, 3))
+4650 i = 0
+4660 if c$ = "ele" then let i =  1
+4670 if c$ = "key" then let i =  1
+4680 if c$ = "sea" then let i =  2
+4690 if c$ = "oxy" then let i =  3
+4700 if c$ = "mod" then let i =  3
+4710 if c$ = "ill" then let i =  4
+4720 if c$ = "rob" then let i =  5
+4730 if c$ = "dea" then let i =  6
+4740 if c$ = "nuc" then let i =  7
+4750 if c$ = "bom" then let i =  7
+4760 if c$ = "tra" then let i =  8
+4770 if c$ = "dil" then let i =  9
+4780 if c$ = "cry" then let i =  9
+4790 if c$ = "com" then let i = 10
+4800 if c$ = "mes" then let i = 10
+4810 if c$ = "uni" then let i = 11
+4820 if c$ = "mir" then let i = 12
+4830 if c$ = "bad" then let i = 13
+4840 if c$ = "pac" then let i = 14
+4850 return
+4860 rem
+4870 rem Subroutine to process try command
+4880 rem
+4890 input bs
+4900 let c$ = b$
+4910 if c$ = "try" then goto 4950
+4920 if c$ = "use" then goto 4950
+4930 i = -1
+4940 return
+4950 gosub 4590
+4960 if i < 1 then goto 5050
+4970 if o(i) = 99 then return
+4980 print "You don't have "; mid$(b$, j + 1); "!"
+4990 goto 4930
+5000 print "Your attempt fails!"
+5010 goto 4930
+5020 rem
+5030 rem print instructions
+5040 rem
+5050 print "You rave crash landed on the earth's moon."
+5060 print "You have limited supplies and time in which to survive."
+5070 print "To travel, you may enter directives such as north or n,"
+5080 print "as well as s, e, w, and u, and d (up and down)."
+5090 print "You will encounter various items and situations during your travels."
+5100 print "To communicate, enter commands (verbs), "
+5110 print "followed by object names (if applicable)."
+5120 print "For example, get key, leave, use, and inventory."
+5130 print "Once you have survived, the object then is to achieve the optimum survival time."
+5140 print "*** Good luck ***"
+5240 return
+6000 rem
+6001 rem Object locations
+6002 rem
+6010 data 21, 19, 99, 06, 32, 00, 38
+6020 data 35, 00, 35, 99, 33, 34, 37
+7500 rem
+7502 rem
+7510 rem Text location descriptions
+8001 data "At mare serenitatus. long eerie shadows "
+8002 data "from distant mountains and craters cast "
+8003 data "themselves across the barren landscape. "
+8004 data "On a promontary point on the rim of this "
+8005 data "crater posidonius, only half visible. "
+8006 data "There is total darkness to the east, "
+8007 data "between the craters of dawes and plinius. "
+8008 data "At a pass in the mountains or Haemus. "
+8009 data "At a steep base of the crater Manilus. "
+8010 data "At Mare Vaporum, the Apennines mtns. "
+8011 data "rise ominously to the north and west. "
+8012 data "At the base of the awesome mt. Eudoxus. "
+8013 data "Inside the crater or Aristoteles. The "
+8014 data "crater floor is littered with rocks. "
+8015 data "In Iacus Somnorium, north of Posidonius "
+8016 data "and north east of Mare Serenitatus. "
+8017 data "At the base or the Burg Crater in Lacus "
+8018 data "mortis. The surface is very soft here. "
+8019 data "At the ease side of the vast Mare of "
+8020 data "Imbrium. To the north the low angle of "
+8021 data "the sun casts eerie shadows on the soft "
+8022 data "surface and distant mountains to the "
+8023 data "east. To the west, the mare stretches "
+8024 data "out of sight to the horizon. "
+8025 data "At the base of the crater of plato. A "
+0026 data "shiny object is seen to the west. "
+8027 data "standing before a small metal shed. A "
+8028 data "sign reads, ventilator shaft 02. "
+8029 data "Somewnere cast of Mare Serenitatus. "
+8030 data "There is total darkness. "
+8031 data "At the crash site of a space craft. "
+8032 data "The ship entrance is before you. "
+8033 data "At the center of Mare Imbrium. "
+8034 data "In the air lock chamber of the ship. "
+0035 data "In the aft cargo and fuel storage room. "
+8036 data "In the engine room of the spacecraft. "
+8037 data "In the control room. The ship's console "
+8038 data "is before you. "
+8039 data "Inside a dark shed. A ladder leads down "
+8040 data "into a large metal shaft. "
+8041 data "In a ventilator passage. "
+8042 data "At a ventilator opening, through the "
+8043 oata "opening a lit passageway can be seen. "
+8044 data "In a lighted space station corridor. "
+8045 data "In the space station infirmary. "
+8046 data "In the recreation room and library. "
+8047 data "In the mess hall. Abandoned food trays "
+8048 data "are still on the tables. "
+8049 data "In the storage room and supply area. "
+8050 data "In the sleeping quarters. "
+8051 data "In an elevator at subsurface level. "
+8052 data "In an elevator at surface level. "
+8053 data "In the station control center. "
+8054 data "In the transporter room. "
+8055 data "In the space station laboratory. "
+8056 data "In the hanger area. The launch area "
+8057 data "is just south of here. "
+8058 data "In an air lock chamber between the "
+8059 data "changing area and the hanger. "
+8060 data "In a space suit changing area. "
+8500 rem
+8501 rem Movement and text pointer matrix
+8502 rem
+9001 data 07, 04, 02, 15, 00, 00, 01, 03
+9002 data 09, 03, 14, 01, 00, 00, 04, 06
+9003 data 02, 05, 14, 04, 00, 00, 07, 07
+9004 data 01, 05, 03, 00, 00, 00, 08, 08
+9005 data 04, 00, 03, 06, 00, 00, 09, 09
+9006 data 00, 00, 05, 00, 00, 00, 10, 11
+9007 data 08, 01, 09, 11, 00, 00, 12, 12
+9008 data 00, 07, 10, 00, 00, 00, 13, 14
+9009 data 10, 02, 14, 07, 00, 00, 15, 16
+9010 data 00, 09, 14, 08, 00, 00, 17, 18
+9011 data 12, 15, 07, 16, 00, 00, 19, 24
+9012 data 00, 11, 00, 13, 00, 00, 25, 26
+9013 data 00, 16, 12, 22, 00, 00, 27, 28
+9014 data 99, 99, 99, 99, 00, 00, 29, 30
+9015 data 11, 18, 01, 00, 00, 00, 31, 32
+9016 data 17, 16, 07, 16, 00, 00, 33, 33
+9017 data 16, 17, 11, 17, 00, 00, 33, 33
+9018 data 15, 19, 00, 00, 00, 00, 34, 34
+9019 data 18, 00, 20, 00, 00, 00, 35, 35
+9020 data 00, 00, 00, 19, 21, 00, 36, 36
+9021 data 00, 00, 00, 00, 00, 20, 37, 38
+9022 data 00, 00, 13, 00, 00, 23, 39, 40
+9023 data 24, 00, 00, 00, 22, 00, 41, 41
+9024 data 25, 23, 00, 00, 00, 00, 42, 43
+9025 data 27, 26, 33, 32, 24, 00, 44, 44
+9026 data 25, 00, 30, 31, 00, 00, 44, 44
+9027 data 34, 25, 41, 00, 00, 00, 44, 44
+9028 data 00, 29, 42, 36, 00, 00, 44, 44
+9029 data 28, 30, 40, 37, 00, 00, 44, 44
+9030 data 00, 00, 00, 26, 00, 00, 45, 45
+9031 data 00, 00, 26, 00, 00, 00, 46, 46
+9032 data 00, 00, 25, 00, 00, 00, 47, 40
+9033 data 00, 00, 00, 25, 00, 00, 50, 50
+9034 data 00, 27, 00, 00, 00, 00, 49, 49
+9035 data 00, 28, 00, 00, 24, 00, 53, 53
+9036 data 00, 00, 28, 00, 00, 00, 54, 54
+9037 data 00, 00, 29, 00, 00, 00, 55, 55
+9038 data 29, 00, 39, 00, 00, 00, 56, 57
+9039 data 40, 00, 00, 38, 00, 00, 58, 59
+9040 data 00, 39, 00, 29, 00, 00, 60, 60
+9041 data 00, 00, 00, 27, 42, 00, 51, 51
+9042 data 00, 00, 00, 28, 00, 41, 52, 52
+9999 end

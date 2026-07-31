@@ -1,0 +1,154 @@
+Survival Game Information
+
+It is the year 1991. You have crash landed on the
+moon and have only 180 minutes of oxygen and 230
+units of power remaining. You are at Mare Serenitatis
+and observe the long, eerie shadows being cast by the
+distant mountains across the barren landscape. The realization 
+sinks in that you are in big trouble.
+
+Game Description
+
+Survival is an “adventure” type of game. With
+logic, skill, persistence, and a little bit of luck, it ts pos-
+sible to survive. The action takes place on the surface
+of the moon where you must assess the situation, ex-
+plore the surroundings, avoid potential hazards, and
+gather needed resources.
+
+It is a race against time. Many explorations arc
+required before the total situation is revealed, and the
+resources and life-threatening hazards are discovered.
+
+Only then, can the process of determining an optimum
+course of action begin.
+
+Once you succeed in surviving, there is then the
+challenge to plan new survival sequences to minimize
+the total elapsed time.
+
+The commands to move are NORTH, SOUTH,
+EAST, WEST, UP, and DOWN. These commands may be
+spelled out or entered as a single letter—N, S, E, W, U, and D.
+
+Other commands consist of an action verb fol-
+lowed by a noun. Examples of these commands are:
+
+GET ILLUMINATOR
+DROP KNIFE
+INVENTORY
+
+The set of commands is relatively small, hence
+you may have to try several alternatives to find the
+one that works. All commands may be abbreviated to
+the first three letters. To exit the program, you may
+enter END or QUIT. There is no provision for saving a
+partially completed game.
+
+Program Design
+The program is relatively es it was orig-
+inally written to fit in a computer with 8K of memory.
+
+The program is directed by a move matrix M.
+There in one vector for cach location P in the game.
+Table 1 lists the significance of each vector in the matrix M.
+
+If the vector element (1-6) contains a value of
+“0," then the move requested in that direction is
+invalid. If the vector clement contains a “99,” then the
+game is terminated.
+
+The TS vector contains the textual description of
+all of the various locations. As an example, the first
+three elements in the vector contain the description for
+location 1 in the M matrix. Looking at the line 9001,
+the seventh and eighth data items correspond to
+MU1,7) which has a value of 1, and M(1,8) which has s
+value of 3.
+
+Table 2 lists the variables used in the program.
+
+Table 3 lists each of the objects used in the program 
+which are contained in the 0 vector. Normally
+the vector clement in 0, for # given object, contains either
+the P location of that item, or a valuc of 99 indicating 
+that the player is carrying that item.
+
+Locations 1-18, and 38 normally require oxygen.
+All other locations are within the space station or the
+space craft. Locations 1-21, and 38 require a power
+unit or peck. All other locations are within the space
+station,
+
+Changing the Complexity of the Game
+
+Normally, the program permits the player to
+carry four items. One way the difficulty can be increased 
+is by permitting only three items to be carried.
+In this case, a longer survival time results, and the
+following statements must be updated:
+
+350 LET T2 = 275
+360 LET P1 = 320
+370 LET P2=75
+730 IF T1 > 485 THEN 2960
+740 IF T1 > 380 THEN 3840
+2270 IF C>2 THEN 2390
+
+Conclusion
+
+This program, unlike other Adventures, contains
+no random events. The emphasis is on determining op-
+timum move scenarios, resulting in minimum times
+and resource use. Each location described corresponds
+to an actual moon location taken from a National Geo-
+graphic map of the moon.
+
+We wish you many happy hours of exploration.
+As a benchmarks, the author's best survival time is
+385 minutes, with a four-item carry limit. Here's to
+your survival!
+
+-------------------------------------
+Table 1.
+M(P,1)= location to go to if direction is NORTH
+M(P,2)= location to go to if direction is SOUTH
+M(P,3)= location to go to if direction is EAST
+M(P,4)= location to go to if direction in WEST
+M(P,5)= location to go to if direction is UP
+M(P,6)= location ta go to if direction is DOWN
+M(P,7)= pointer to first print line in TS vector
+M(P,8)= pointer to last print line in TS vector
+
+
+Table 2.
+P - The current location.
+R - The previous location (P for the previous location).
+T1 - The current elapsed time.
+T2 - The amount of oxygen remaining in the oxygen module.
+P1 - The amount of power remaining in the power unit.
+P2 - The amount of power remaining in the power pack.
+V - The number of visits to the control center.
+C - The number of items being carried.
+F0 - Flag: oxygen in use.
+F1 - Flag: Meteor shower.
+F2 - Flag: Shed open.
+F4 - Flag: Illuminator on.
+F7 - Flag: Bomb deactivated.
+F9 - Flag: Oxygen required in station.
+
+Table 3.
+O(1) - An electronic key.
+O(2) - Sealant.
+O(3) - An oxygen module.
+O(4) - An illuminator.
+O(5) - A robot.
+O(6) - A deactivator.
+O(7) - A nuclear bomb.
+O(8) - A transporter unit.
+O(9) - Ditithium crystals.
+O(10) - A computer message.
+O(11) - A power unit.
+0(12) - A mirror.
+0(13) - A coded badge.
+Q(14) - A power pack.
