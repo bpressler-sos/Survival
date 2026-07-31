@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SURVIVAL — Space Station Omega</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="game-container">
+
+  <!-- ═══════════════════════════════════════════════════ HUD ══ -->
+  <header id="hud">
+    <div id="hud-title">SURVIVAL</div>
+
+    <div id="hud-stats">
+      <span id="hud-oxygen"  class="hud-stat">O₂: --</span>
+      <span id="hud-power"   class="hud-stat">PWR: --</span>
+      <span id="hud-moves"   class="hud-stat hud-moves">MOVES: 0</span>
+    </div>
+
+    <div id="hud-location-wrap">
+      <span class="hud-label">LOCATION:</span>
+      <span id="hud-location">---</span>
+    </div>
+
+    <button id="btn-restart" class="sys-btn" title="Restart Game">RESTART</button>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════ MAIN AREA ══ -->
+  <div id="main-area">
+
+    <!-- ─────────────────────────── TRANSCRIPT ── -->
+    <div id="transcript-wrap">
+      <div id="transcript" role="log" aria-live="polite" aria-label="Game output"></div>
+
+      <!-- Quick-action buttons sit above the input line -->
+      <div id="quick-actions">
+        <span class="qa-label">QUICK:</span>
+        <button id="btn-take" class="qa-btn" title="Pick up an item from the room">TAKE</button>
+        <button id="btn-use"  class="qa-btn" title="Use an item from your inventory">USE</button>
+        <button id="btn-drop" class="qa-btn" title="Drop an item from your inventory">DROP</button>
+      </div>
+
+      <!-- Command input -->
+      <div id="input-area">
+        <span id="input-prompt">&gt;</span>
+        <input
+          type="text"
+          id="command-input"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          aria-label="Command input"
+          placeholder="type a command or use the buttons…"
+        >
+      </div>
+    </div><!-- /transcript-wrap -->
+
+    <!-- ─────────────────────────────── SIDEBAR ── -->
+    <aside id="sidebar">
+
+      <!-- Direction pad -->
+      <section id="direction-pad" aria-label="Movement controls">
+        <div class="dir-label">MOVE</div>
+        <div class="dir-grid">
+          <!--  NW placeholder | N  | NE placeholder  -->
+          <div class="dir-corner"></div>
+          <button id="btn-n" class="dir-btn" data-dir="n" aria-label="North">N</button>
+          <div class="dir-corner"></div>
+
+          <button id="btn-w" class="dir-btn" data-dir="w" aria-label="West">W</button>
+          <div class="dir-center">&#x2022;</div>
+          <button id="btn-e" class="dir-btn" data-dir="e" aria-label="East">E</button>
+
+          <div class="dir-corner"></div>
+          <button id="btn-s" class="dir-btn" data-dir="s" aria-label="South">S</button>
+          <div class="dir-corner"></div>
+
+          <!-- Up / Down on a second row -->
+          <button id="btn-u" class="dir-btn dir-ud" data-dir="u" aria-label="Up">UP</button>
+          <div class="dir-corner"></div>
+          <button id="btn-d" class="dir-btn dir-ud" data-dir="d" aria-label="Down">DN</button>
+        </div>
+      </section>
+
+      <!-- Inventory -->
+      <section id="inventory-panel" aria-label="Inventory">
+        <div class="panel-heading">INVENTORY</div>
+        <div id="inv-capacity" class="inv-capacity">0 / 6 slots</div>
+        <ul id="inventory-list" class="item-list"></ul>
+      </section>
+
+      <!-- Room items -->
+      <section id="room-items-panel" aria-label="Items in room">
+        <div class="panel-heading">ITEMS HERE</div>
+        <ul id="room-items-list" class="item-list"></ul>
+      </section>
+
+    </aside><!-- /sidebar -->
+
+  </div><!-- /main-area -->
+
+</div><!-- /game-container -->
+
+<script src="gameData.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
