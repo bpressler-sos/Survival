@@ -1,94 +1,85 @@
 /**
- * game.js — SURVIVAL: Space Station Omega
+ * game.js — SURVIVAL (Moon Survival)
  *
- * Game engine: state management, parser, command handlers, UI updates.
- * All static world data is in gameData.js (must be loaded first).
+ * Faithful JavaScript port of the 1981 BASIC text adventure by Stewart Rush.
+ * All static world data is in gameData.js (must load first).
  *
- * Architecture overview
- * ─────────────────────
- *  GameState   — single mutable object holding all game state
- *  parseInput  — tokenises player input → calls executeCommand
- *  executeCommand — dispatches to a command handler
- *  cmd*        — one function per player command
- *  onTurnEnd   — called after every successful action; ticks resources,
- *                checks robot, checks win/lose
- *  update*     — DOM-manipulation helpers called by printOutput / onTurnEnd
+ * ── How the BASIC loop maps to JavaScript ───────────────────────────────────
+ *  Each "turn" calls beginTurn(), which:
+ *    1. Prints elapsed time and resource levels
+ *    2. Increments t1 by 5, drains power/oxygen
+ *    3. Checks power failure / time-limit deaths
+ *    4. Handles timed world events (expose deactivator, bomb, asteroid)
+ *    5. Checks oxygen-death conditions
+ *    6. Prints location description and items present
+ *    7. Runs robot movement logic
+ *  After beginTurn() the engine waits for player input (processInput).
  *
- * Approved gameplay fixes implemented here:
- *   1. Dark-room safety  — GameState.enteredFrom tracks the safe retreat dir.
- *   2. Robot fairness    — robotWarnings counter; two turns before death.
- *   3. All map exits     — reciprocal by construction in gameData.js.
- *   4. Resources raised  — in GAME_CONFIG (gameData.js).
- *   5. Inventory limit   — in GAME_CONFIG (gameData.js).
+ * ── Obstacle mechanic ───────────────────────────────────────────────────────
+ *  When a movement encounters a locked/dangerous barrier the engine sets
+ *  GS.obstacle = { requiredItem, onSuccess, onFail }.
+ *  The *next* player input is intercepted: "use/try <item>" with the right
+ *  item calls onSuccess; wrong item / fatal barriers call onFail.
  */
 
 'use strict';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STATE
+// GAME STATE
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** All mutable game state. Reset by initGame(). */
-let GameState = {};
+// ── All mutable game state (var so browser devtools and tests can inspect it)
+var GS = {};
 
 function initGame() {
-  GameState = {
-    // Player location
-    currentRoom: 1,
-    enteredFrom: null,        // direction player arrived from (for dark-room safety)
+  GS = {
+    p:  1,      // current location
+    r:  1,      // previous location
+    t1: 0,      // elapsed time (minutes) — incremented BEFORE display
+    t2: 105,    // oxygen remaining (minutes)
+    p1: 230,    // power unit charge
+    p2: 50,     // power pack charge
+    v:  0,      // computer terminal reads
+    c:  2,      // items carried  (starts 2: oxygen module + power unit)
 
-    // Resources
-    oxygen: GAME_CONFIG.startingOxygen,
-    power:  GAME_CONFIG.startingPower,
+    // Flags (all 0=off / 1=on unless noted)
+    f0: 1,  // oxygen in use (1=consuming, 0=not)
+    f1: 0,  // shed unlocked
+    f2: 0,  // meteor shower survived
+    f3: 0,  // laser deflected
+    f4: 0,  // ventilator shaft illuminated
+    f5: 0,  // deactivator exposed (placed at loc 14)
+    f7: 0,  // bomb deactivated
+    f9: 0,  // air seal blown (oxygen req'd everywhere)
 
-    // Inventory: array of item ids
-    inventory: [],
+    o: O_INIT.slice(),           // object locations (1-indexed)
+    m: M_INIT.map(r => r ? r.slice() : null), // movement matrix (mutable)
 
-    // Turn counter
-    moves: 0,
+    obstacle: null,  // pending obstacle: { requiredItem, onSuccess, onFail }
+    gameOver: false,
+    won:      false,
 
-    // ── Robot state ──────────────────────────────────────────────────────────
-    // robotWarnings: how many more turns before robot kills (null = not triggered)
-    robotWarnings: null,
-
-    // ── Flags ────────────────────────────────────────────────────────────────
-    flags: {
-      suitOn:           false,   // player has put on the spacesuit
-      powerRestored:    false,   // power cell installed in power room
-      bombDeactivated:  false,   // bomb has been deactivated
-      gameOver:         false,   // true once any end state fires
-      won:              false,
-    },
-
-    // Command input history (up-arrow recall)
     inputHistory: [],
     historyIndex: -1,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DOM REFERENCES  (set in window.onload)
+// DOM REFERENCES
 // ─────────────────────────────────────────────────────────────────────────────
 
-let elTranscript, elInput, elOxygen, elPower, elMoves, elLocation,
-    elInventoryList, elDirButtons, elRoomItems, elTakeBtn, elUseBtn, elDropBtn;
+let elTranscript, elInput, elO2, elPower, elTime, elLocation,
+    elInventoryList, elRoomList, elDirButtons;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OUTPUT HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Append a line (or block) of text to the transcript.
- * @param {string} text
- * @param {string} [cssClass]  — 'msg-normal' | 'msg-warn' | 'msg-good' | 'msg-bad' | 'msg-system'
- */
-function printOutput(text, cssClass) {
-  const cls = cssClass || 'msg-normal';
+function printOutput(text, cls) {
+  const cssClass = cls || 'msg-normal';
   const div = document.createElement('div');
-  div.className = 'output-line ' + cls;
-  // Preserve blank lines: split on \n and insert <br> for empty lines
-  const lines = text.split('\n');
-  lines.forEach((line, i) => {
+  div.className = 'output-line ' + cssClass;
+  text.split('\n').forEach((line, i) => {
     if (i > 0) div.appendChild(document.createElement('br'));
     div.appendChild(document.createTextNode(line));
   });
@@ -96,1146 +87,937 @@ function printOutput(text, cssClass) {
   elTranscript.scrollTop = elTranscript.scrollHeight;
 }
 
-/** Print a blank separator line */
 function printBlank() {
   const div = document.createElement('div');
-  div.className = 'output-line output-blank';
+  div.className = 'output-line';
   div.innerHTML = '&nbsp;';
   elTranscript.appendChild(div);
-  elTranscript.scrollTop = elTranscript.scrollHeight;
 }
 
-/** Print room name as a header */
-function printRoomHeader(name) {
-  printOutput('[ ' + name.toUpperCase() + ' ]', 'msg-room');
+function printHR() {
+  const hr = document.createElement('hr');
+  hr.className = 'transcript-hr';
+  elTranscript.appendChild(hr);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HUD UPDATES
+// HUD & SIDEBAR UPDATES
 // ─────────────────────────────────────────────────────────────────────────────
 
 function updateHUD() {
-  const room = ROOMS[GameState.currentRoom];
-  elLocation.textContent = room ? room.name.toUpperCase() : '---';
-  elMoves.textContent    = GameState.moves;
+  // Oxygen
+  if (GS.f0 === 1) {
+    elO2.textContent = 'O\u2082: ' + GS.t2 + ' min';
+    elO2.classList.toggle('hud-warn', GS.t2 <= 20);
+  } else {
+    elO2.textContent = 'O\u2082: ---';
+    elO2.classList.remove('hud-warn');
+  }
 
-  // Oxygen display — colour-code by urgency
-  elOxygen.textContent = 'O\u2082: ' + GameState.oxygen;
-  elOxygen.className = 'hud-stat';
-  if (GameState.oxygen <= 20)       elOxygen.classList.add('hud-critical');
-  else if (GameState.oxygen <= 50)  elOxygen.classList.add('hud-warning');
+  // Power
+  if (GS.o[11] === 99) {
+    elPower.textContent = 'PWR: ' + GS.p1 + 'u';
+    elPower.classList.toggle('hud-warn', GS.p1 <= 30);
+  } else if (GS.o[14] === 99) {
+    elPower.textContent = 'PKT: ' + GS.p2 + 'u';
+    elPower.classList.toggle('hud-warn', GS.p2 <= 10);
+  } else {
+    elPower.textContent = 'PWR: ---';
+    elPower.classList.remove('hud-warn');
+  }
 
-  // Power display
-  elPower.textContent = 'PWR: ' + GameState.power;
-  elPower.className = 'hud-stat';
-  if (GameState.power <= 20)        elPower.classList.add('hud-critical');
-  else if (GameState.power <= 50)   elPower.classList.add('hud-warning');
+  // Time
+  elTime.textContent = 'TIME: ' + GS.t1 + ' min';
+
+  // Location
+  elLocation.textContent = LOC_NAME[GS.p] || ('Loc ' + GS.p);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DIRECTION BUTTON UPDATES
-// ─────────────────────────────────────────────────────────────────────────────
-
-function updateDirectionButtons() {
-  const room = ROOMS[GameState.currentRoom];
-  if (!room) return;
-
-  // Effective exits: room exits + the outer-airlock north (special)
-  const availableExits = Object.assign({}, room.exits);
-
-  // The outer airlock has a north exit that is special (death or conditional)
-  if (room.special === 'outerAirlock') availableExits.n = true;
-
-  // In a dark room without a flashlight, only the safe-retreat direction
-  // is navigable (approved dark-room safety fix #1).
-  const darkRestrict = isRoomDark();
-  const safeRetreatDir = (darkRestrict && GameState.enteredFrom)
-    ? DIR_OPPOSITE[GameState.enteredFrom]
-    : null;
-
-  ['n', 's', 'e', 'w', 'u', 'd'].forEach(dir => {
-    const btn = document.getElementById('btn-' + dir);
+function updateDirButtons() {
+  const row = GS.m[GS.p];
+  const dirs = ['n','s','e','w','u','d'];
+  const idx  = [0,  1,  2,  3,  4,  5];
+  dirs.forEach((d, i) => {
+    const btn = document.getElementById('btn-' + d);
     if (!btn) return;
-    const exitExists = availableExits[dir] !== undefined && availableExits[dir] !== null;
-    const blockedByDark = darkRestrict && exitExists && dir !== safeRetreatDir;
-
-    if (exitExists && !blockedByDark) {
-      btn.disabled = false;
-      btn.classList.remove('dir-unavailable');
-    } else {
-      btn.disabled = true;
-      btn.classList.add('dir-unavailable');
-    }
+    const dest = row ? row[idx[i]] : 0;
+    btn.disabled = (dest === 0);
+    btn.classList.toggle('dir-death', dest === 99);
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// INVENTORY PANEL UPDATES
-// ─────────────────────────────────────────────────────────────────────────────
-
-function updateInventoryPanel() {
+function updateInventory() {
   elInventoryList.innerHTML = '';
-
-  if (GameState.inventory.length === 0) {
-    const li = document.createElement('li');
-    li.textContent = '(empty)';
-    li.className = 'inv-empty';
-    elInventoryList.appendChild(li);
-  } else {
-    GameState.inventory.forEach(itemId => {
-      const item = ITEMS[itemId];
-      if (!item) return;
+  let count = 0;
+  for (let i = 1; i <= 14; i++) {
+    if (GS.o[i] === 99) {
+      count++;
       const li = document.createElement('li');
-      li.textContent = item.name;
-      li.dataset.itemId = itemId;
-      li.className = 'inv-item';
+      li.className = 'item-entry';
+      li.textContent = ITEM_NAME[i];
+      li.title = 'Drop ' + ITEM_NAME[i];
+      li.addEventListener('click', () => {
+        if (!GS.gameOver && !GS.obstacle) processInput('drop ' + ITEM_NAME[i].replace(/^(an?|the)\s+/i, ''));
+      });
       elInventoryList.appendChild(li);
-    });
+    }
   }
-
-  // Weight display
-  const used  = inventoryWeight();
-  const limit = GAME_CONFIG.inventoryLimit;
   const cap = document.getElementById('inv-capacity');
-  if (cap) cap.textContent = used + ' / ' + limit + ' slots';
+  if (cap) cap.textContent = count + ' / 4 items';
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ROOM ITEMS PANEL
-// ─────────────────────────────────────────────────────────────────────────────
 
 function updateRoomItems() {
-  if (!elRoomItems) return;
-  const room = ROOMS[GameState.currentRoom];
-  elRoomItems.innerHTML = '';
-
-  const isDark = isRoomDark();
-
-  if (!isDark && room && room.items.length > 0) {
-    room.items.forEach(itemId => {
-      const item = ITEMS[itemId];
-      if (!item) return;
+  elRoomList.innerHTML = '';
+  for (let i = 1; i <= 14; i++) {
+    if (GS.o[i] === GS.p) {
       const li = document.createElement('li');
-      li.textContent = item.name;
-      li.dataset.itemId = itemId;
-      li.className = 'room-item';
-      elRoomItems.appendChild(li);
-    });
-  } else {
-    const li = document.createElement('li');
-    li.textContent = isDark ? '(too dark to see)' : '(nothing)';
-    li.className = 'inv-empty';
-    elRoomItems.appendChild(li);
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// QUICK-ACTION BUTTONS (Take / Use / Drop)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Wire up the Take, Use, and Drop quick-action buttons.
- * They show a small popover so the player can choose which item to act on,
- * then internally execute the same parser command.
- */
-function initQuickActions() {
-  const takeBtn = document.getElementById('btn-take');
-  const useBtn  = document.getElementById('btn-use');
-  const dropBtn = document.getElementById('btn-drop');
-
-  if (takeBtn) {
-    takeBtn.addEventListener('click', () => {
-      const room = ROOMS[GameState.currentRoom];
-      if (!room || room.items.length === 0 || isRoomDark()) {
-        printOutput('There is nothing here to take.', 'msg-warn');
-        return;
-      }
-      showItemPicker('Take which item?', room.items, itemId => {
-        submitCommand('GET ' + ITEMS[itemId].keywords[0]);
-      });
-    });
-  }
-
-  if (useBtn) {
-    useBtn.addEventListener('click', () => {
-      if (GameState.inventory.length === 0) {
-        printOutput('You are not carrying anything.', 'msg-warn');
-        return;
-      }
-      showItemPicker('Use which item?', GameState.inventory, itemId => {
-        submitCommand('USE ' + ITEMS[itemId].keywords[0]);
-      });
-    });
-  }
-
-  if (dropBtn) {
-    dropBtn.addEventListener('click', () => {
-      if (GameState.inventory.length === 0) {
-        printOutput('You are not carrying anything.', 'msg-warn');
-        return;
-      }
-      showItemPicker('Drop which item?', GameState.inventory, itemId => {
-        submitCommand('DROP ' + ITEMS[itemId].keywords[0]);
-      });
-    });
-  }
-}
-
-/**
- * Display a small inline picker below the transcript.
- * @param {string}   prompt     — label shown above the picker
- * @param {string[]} itemIds    — list of item ids to offer
- * @param {Function} callback   — called with chosen itemId
- */
-function showItemPicker(prompt, itemIds, callback) {
-  // Remove any existing picker
-  const existing = document.getElementById('item-picker');
-  if (existing) existing.remove();
-
-  const picker = document.createElement('div');
-  picker.id = 'item-picker';
-  picker.className = 'item-picker';
-
-  const label = document.createElement('div');
-  label.className = 'picker-label';
-  label.textContent = prompt;
-  picker.appendChild(label);
-
-  itemIds.forEach(itemId => {
-    const item = ITEMS[itemId];
-    if (!item) return;
-    const btn = document.createElement('button');
-    btn.className = 'picker-item-btn';
-    btn.textContent = item.name;
-    btn.addEventListener('click', () => {
-      picker.remove();
-      callback(itemId);
-    });
-    picker.appendChild(btn);
-  });
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.className = 'picker-cancel-btn';
-  cancelBtn.textContent = '[Cancel]';
-  cancelBtn.addEventListener('click', () => picker.remove());
-  picker.appendChild(cancelBtn);
-
-  // Insert just before the input area
-  const inputArea = document.getElementById('input-area');
-  inputArea.parentNode.insertBefore(picker, inputArea);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Is the current room dark and the player has no light? */
-function isRoomDark() {
-  const room = ROOMS[GameState.currentRoom];
-  if (!room || !room.dark) return false;
-  return !GameState.inventory.includes('flashlight');
-}
-
-/** Total inventory weight (slots used) */
-function inventoryWeight() {
-  return GameState.inventory.reduce((sum, id) => {
-    const item = ITEMS[id];
-    return sum + (item ? item.weight : 0);
-  }, 0);
-}
-
-/**
- * Find an item id matching a keyword fragment.
- * Searches a provided list (inventory or room items).
- * Returns the id string or null.
- */
-function findItemByKeyword(keyword, idList) {
-  if (!keyword) return null;
-  const kw = keyword.toLowerCase();
-  // Exact keyword match first
-  for (const id of idList) {
-    const item = ITEMS[id];
-    if (!item) continue;
-    if (item.keywords.includes(kw)) return id;
-  }
-  // Partial match on keyword list
-  for (const id of idList) {
-    const item = ITEMS[id];
-    if (!item) continue;
-    if (item.keywords.some(k => k.startsWith(kw))) return id;
-  }
-  // Partial match on item name
-  for (const id of idList) {
-    const item = ITEMS[id];
-    if (!item) continue;
-    if (item.name.toLowerCase().includes(kw)) return id;
-  }
-  return null;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ROOM DESCRIPTION
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Print the full description for the current room.
- * Handles dark rooms and item listing.
- * @param {boolean} brief — if true, suppress the long description (re-entry)
- */
-function describeRoom(brief) {
-  const room = ROOMS[GameState.currentRoom];
-  if (!room) return;
-
-  printBlank();
-  printRoomHeader(room.name);
-
-  if (isRoomDark()) {
-    printOutput(MESSAGES.darkNoLight, 'msg-warn');
-  } else {
-    if (!brief) {
-      printOutput(room.description, 'msg-normal');
-    }
-
-    // List items on the floor
-    if (room.items.length > 0) {
-      const names = room.items.map(id => ITEMS[id] ? ITEMS[id].name : id);
-      if (names.length === 1) {
-        printOutput('You see: ' + names[0] + '.', 'msg-item');
+      li.className = 'item-entry';
+      li.textContent = ITEM_NAME[i];
+      // Items that cannot be picked up
+      if (i === 5) {
+        li.title = 'A robot (cannot carry)';
+        li.classList.add('item-noget');
+      } else if (i === 10) {
+        li.title = 'Read the computer message (use READ command)';
+        li.classList.add('item-noget');
       } else {
-        printOutput('You see: ' + names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] + '.', 'msg-item');
+        li.title = 'Take ' + ITEM_NAME[i];
+        li.addEventListener('click', () => {
+          if (!GS.gameOver && !GS.obstacle) processInput('get ' + ITEM_NAME[i].replace(/^(an?|the)\s+/i, ''));
+        });
       }
-    }
-
-    // List available exits
-    const exitList = Object.keys(room.exits)
-      .filter(dir => room.exits[dir] !== null)
-      .map(dir => DIR_DISPLAY[dir] || dir.toUpperCase());
-
-    // The outer airlock has a north exit that is special
-    if (room.special === 'outerAirlock' && !exitList.includes('North')) {
-      exitList.push('North (outer hatch — DANGER)');
-    }
-
-    if (exitList.length > 0) {
-      printOutput('Exits: ' + exitList.join(', ') + '.', 'msg-exit');
-    } else {
-      printOutput('There are no obvious exits!', 'msg-warn');
+      elRoomList.appendChild(li);
     }
   }
+}
 
+function updateUI() {
   updateHUD();
-  updateDirectionButtons();
-  updateInventoryPanel();
+  updateDirButtons();
+  updateInventory();
   updateRoomItems();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MOVEMENT
+// ITEM LOOKUP HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Attempt to move the player in `dir` (single letter: n/s/e/w/u/d).
- * Applies dark-room safety: the direction the player entered from is always
- * safe to retrace.
+ * Given a command string containing a noun (e.g. "get electronic key"),
+ * returns the item index (1-14) or 0 if unrecognised.
+ * Matches the first 3 letters of the last "word group" after the verb.
  */
-function cmdGo(dir) {
-  if (!dir) {
-    printOutput('Go where? Please specify a direction (N, S, E, W).', 'msg-warn');
-    return false;
+function parseItem(input) {
+  const s = input.trim().toLowerCase();
+  const spaceIdx = s.indexOf(' ');
+  if (spaceIdx === -1) return 0;
+  const noun = s.slice(spaceIdx + 1).trim();
+  if (!noun) return 0;
+  // Try each word in the noun phrase (skip articles); return first match
+  const words = noun.split(/\s+/);
+  for (const w of words) {
+    if (w === 'a' || w === 'an' || w === 'the') continue;
+    const id = ITEM_KEYS[w.slice(0, 3)];
+    if (id) return id;
   }
-
-  const room = ROOMS[GameState.currentRoom];
-  if (!room) return false;
-
-  // ── Special case: outer airlock north hatch ──────────────────────────────
-  if (room.special === 'outerAirlock' && dir === 'n') {
-    if (!GameState.flags.suitOn) {
-      printOutput(MESSAGES.airlockNoSuit, 'msg-warn');
-      return false;
-    } else {
-      // Safe to open hatch while suited — they look out and return
-      printOutput(MESSAGES.airlockSuitOk, 'msg-normal');
-      return true;    // counts as a turn but no room change
-    }
-  }
-
-  // ── Dark-room safety (approved fix #1) ───────────────────────────────────
-  // If room is dark and player has no light, only the entrance direction is safe.
-  // Any other direction gets a warning and is blocked.
-  if (isRoomDark()) {
-    const safeDir = GameState.enteredFrom
-      ? DIR_OPPOSITE[GameState.enteredFrom]
-      : null;
-
-    if (dir !== safeDir) {
-      printOutput(
-        'It is too dark to move safely in that direction. ' +
-        (safeDir ? 'You could safely go back ' + DIR_DISPLAY[safeDir] + '.' : ''),
-        'msg-warn'
-      );
-      return false;
-    }
-  }
-
-  // ── Normal movement ───────────────────────────────────────────────────────
-  const destId = room.exits[dir];
-  if (!destId) {
-    printOutput('You cannot go ' + (DIR_DISPLAY[dir] || dir) + ' from here.', 'msg-warn');
-    return false;
-  }
-
-  // Move the player
-  GameState.enteredFrom = dir;
-  GameState.currentRoom = destId;
-
-  describeRoom(false);
-  return true;
+  return 0;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET / TAKE
-// ─────────────────────────────────────────────────────────────────────────────
-
-function cmdGet(noun) {
-  if (!noun) {
-    printOutput('Get what?', 'msg-warn');
-    return false;
-  }
-
-  if (isRoomDark()) {
-    printOutput('It is too dark to find anything.', 'msg-warn');
-    return false;
-  }
-
-  const room = ROOMS[GameState.currentRoom];
-  const itemId = findItemByKeyword(noun, room.items);
-
-  if (!itemId) {
-    printOutput('You don\'t see any "' + noun + '" here.', 'msg-warn');
-    return false;
-  }
-
-  const item = ITEMS[itemId];
-
-  if (!item.portable) {
-    printOutput('You cannot take the ' + item.name + '.', 'msg-warn');
-    return false;
-  }
-
-  // Check inventory capacity
-  if (inventoryWeight() + item.weight > GAME_CONFIG.inventoryLimit) {
-    printOutput(
-      'You are carrying too much to pick up the ' + item.name + '. ' +
-      'Drop something first.',
-      'msg-warn'
-    );
-    return false;
-  }
-
-  // Transfer item from room to inventory
-  room.items.splice(room.items.indexOf(itemId), 1);
-  GameState.inventory.push(itemId);
-
-  printOutput('Taken: ' + item.name + '.', 'msg-good');
-
-  updateInventoryPanel();
-  updateRoomItems();
-  return true;
-}
+/** Returns true if the player is carrying item i. */
+function carrying(i) { return GS.o[i] === 99; }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DROP
+// TURN ENTRY POINT  (called every time we need to display a location)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function cmdDrop(noun) {
-  if (!noun) {
-    printOutput('Drop what?', 'msg-warn');
-    return false;
-  }
-
-  const itemId = findItemByKeyword(noun, GameState.inventory);
-
-  if (!itemId) {
-    printOutput('You are not carrying any "' + noun + '".', 'msg-warn');
-    return false;
-  }
-
-  const item = ITEMS[itemId];
-
-  // If dropping the spacesuit, unmark suit flag
-  if (itemId === 'spacesuit') {
-    GameState.flags.suitOn = false;
-  }
-
-  GameState.inventory.splice(GameState.inventory.indexOf(itemId), 1);
-  ROOMS[GameState.currentRoom].items.push(itemId);
-
-  printOutput('Dropped: ' + item.name + '.', 'msg-normal');
-
-  updateInventoryPanel();
-  updateRoomItems();
-  return true;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// USE
-// ─────────────────────────────────────────────────────────────────────────────
-
-function cmdUse(noun) {
-  if (!noun) {
-    printOutput('Use what?', 'msg-warn');
-    return false;
-  }
-
-  // Search both inventory and room for the item
-  const invId  = findItemByKeyword(noun, GameState.inventory);
-  const roomId = isRoomDark() ? null :
-    findItemByKeyword(noun, ROOMS[GameState.currentRoom].items);
-
-  const itemId = invId || roomId;
-
-  if (!itemId) {
-    printOutput('You don\'t see any "' + noun + '" here or in your inventory.', 'msg-warn');
-    return false;
-  }
-
-  const item = ITEMS[itemId];
-  const inInventory = GameState.inventory.includes(itemId);
-  const room = ROOMS[GameState.currentRoom];
-
-  // ── Flashlight ────────────────────────────────────────────────────────────
-  if (item.useEffect === 'light') {
-    printOutput(item.useMessage, 'msg-good');
-    if (!inInventory) {
-      // Auto-pickup if on floor
-      room.items.splice(room.items.indexOf(itemId), 1);
-      GameState.inventory.push(itemId);
-      printOutput('(You pick up the flashlight.)', 'msg-normal');
-    }
-    describeRoom(false);
-    return true;
-  }
-
-  // ── Oxygen tank ───────────────────────────────────────────────────────────
-  if (item.useEffect === 'oxygen') {
-    if (!inInventory) {
-      printOutput('You need to pick up the ' + item.name + ' first.', 'msg-warn');
-      return false;
-    }
-    const boost = GAME_CONFIG.oxygenTankBoost;
-    GameState.oxygen += boost;
-    // Remove used tank from inventory
-    GameState.inventory.splice(GameState.inventory.indexOf(itemId), 1);
-    printOutput(item.useMessage, 'msg-good');
-    updateInventoryPanel();
-    updateHUD();
-    return true;
-  }
-
-  // ── Power cell ────────────────────────────────────────────────────────────
-  if (item.useEffect === 'power') {
-    if (!inInventory) {
-      printOutput('You need to be carrying the ' + item.name + '.', 'msg-warn');
-      return false;
-    }
-    if (room.special !== 'powerRoom') {
-      printOutput(item.useFailMsg, 'msg-warn');
-      return false;
-    }
-    if (GameState.flags.powerRestored) {
-      printOutput(MESSAGES.powerAlreadyRestored, 'msg-warn');
-      return false;
-    }
-    GameState.flags.powerRestored = true;
-    GameState.power += GAME_CONFIG.powerCellBoost;
-    GameState.inventory.splice(GameState.inventory.indexOf(itemId), 1);
-    printOutput(MESSAGES.powerRestored, 'msg-good');
-    updateInventoryPanel();
-    updateHUD();
-    return true;
-  }
-
-  // ── Spacesuit ─────────────────────────────────────────────────────────────
-  if (item.useEffect === 'suit') {
-    if (!inInventory) {
-      printOutput('You need to pick up the spacesuit first.', 'msg-warn');
-      return false;
-    }
-    if (GameState.flags.suitOn) {
-      printOutput('You are already wearing the spacesuit.', 'msg-warn');
-      return false;
-    }
-    GameState.flags.suitOn = true;
-    printOutput(item.useMessage, 'msg-good');
-    return true;
-  }
-
-  // ── Access card (in escape pod bay) ──────────────────────────────────────
-  if (item.useEffect === 'access') {
-    if (!inInventory) {
-      printOutput('You need to be carrying the ' + item.name + '.', 'msg-warn');
-      return false;
-    }
-    if (room.special !== 'escapePod') {
-      printOutput(
-        'The access card is coded for the escape pod launch system.',
-        'msg-warn'
-      );
-      return false;
-    }
-    return cmdActivateEscapePod();
-  }
-
-  // ── Keycard (in transporter room) ─────────────────────────────────────────
-  if (item.useEffect === 'transport') {
-    if (!inInventory) {
-      printOutput('You need to be carrying the ' + item.name + '.', 'msg-warn');
-      return false;
-    }
-    if (room.special !== 'transporter') {
-      printOutput(item.useFailMsg, 'msg-warn');
-      return false;
-    }
-    return cmdActivateTransporter();
-  }
-
-  // ── Deactivator ───────────────────────────────────────────────────────────
-  if (item.useEffect === 'deactivate') {
-    if (!inInventory) {
-      printOutput('You need to pick up the deactivator first.', 'msg-warn');
-      return false;
-    }
-    return cmdDeactivateBomb();
-  }
-
-  // ── Repair (toolkit — generic) ────────────────────────────────────────────
-  if (item.useEffect === 'repair') {
-    printOutput(item.useMessage, 'msg-normal');
-    return true;
-  }
-
-  // ── Generic use ───────────────────────────────────────────────────────────
-  if (item.useMessage) {
-    printOutput(item.useMessage, 'msg-normal');
-    return true;
-  }
-
-  printOutput('Nothing useful happens.', 'msg-warn');
-  return false;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SPECIAL INTERACTIONS
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Attempt to activate the escape pod. */
-function cmdActivateEscapePod() {
-  // Check bomb
-  const bombDeactivated = GameState.flags.bombDeactivated;
-  const bombInRoom      = ROOMS[24].items.includes('bomb');
-  const bombInInv       = GameState.inventory.includes('bomb');
-  const bombActive      = !bombDeactivated && (bombInRoom || bombInInv ||
-    Object.values(ROOMS).some(r => r.items.includes('bomb')));
-
-  if (bombActive) {
-    printOutput(MESSAGES.escapePodBombActive, 'msg-warn');
-    return false;
-  }
-
-  if (!GameState.inventory.includes('accesscard')) {
-    printOutput(MESSAGES.escapePodNoCard, 'msg-warn');
-    return false;
-  }
-
-  // WIN!
+function beginTurn() {
+  // ── 1. Print elapsed time and resource levels ──────────────────────────────
   printBlank();
-  printOutput(MESSAGES.escapePodLaunching, 'msg-good');
-  printBlank();
-  setTimeout(() => {
-    printOutput(MESSAGES.win, 'msg-win');
-    GameState.flags.won = true;
-    GameState.flags.gameOver = true;
-    updateHUD();
-    disableInput();
-  }, 800);
+  printOutput('Elapsed time: ' + GS.t1 + ' minutes.', 'msg-system');
+  if (carrying(11)) printOutput('Power unit: ' + GS.p1 + ' units.', 'msg-system');
+  if (carrying(14)) printOutput('Power pack: ' + GS.p2 + ' units.', 'msg-system');
 
-  return true;
-}
+  // ── 2. Advance time and drain resources ────────────────────────────────────
+  GS.t1 += 5;
+  if (carrying(11) && GS.p1 > 0) GS.p1 -= 5;
+  if (carrying(14) && GS.p2 > 0) GS.p2 -= 5;
 
-/** Attempt to activate the transporter. */
-function cmdActivateTransporter() {
-  if (!GameState.flags.powerRestored) {
-    printOutput(MESSAGES.transporterNoPower, 'msg-warn');
-    return false;
-  }
-  if (!GameState.inventory.includes('keycard')) {
-    printOutput(MESSAGES.transporterNoKey, 'msg-warn');
-    return false;
+  // ── 3. Check power failure ─────────────────────────────────────────────────
+  if (carrying(11) && GS.p1 === 0) { powerFailure(); return; }
+  if (carrying(14) && GS.p2 === 0) { powerFailure(); return; }
+
+  // ── 4. Timed world events ──────────────────────────────────────────────────
+  if (GS.t1 > 400) { asteroidDeath(); return; }
+
+  if (GS.t1 > 350) {
+    if (GS.f7 === 0) { bombDetonation(); return; }
+    // Bomb already deactivated — continue
   }
 
-  printOutput(MESSAGES.transporterActivating, 'msg-good');
-
-  // Teleport to Robot Base Entry (room 19) — a useful shortcut into the base
-  // that still requires navigating the base interior to reach the control room.
-  // TODO: original BASIC destination unclear; 19 chosen as most logical.
-  setTimeout(() => {
-    GameState.currentRoom = 19;
-    GameState.enteredFrom = null;  // teleport clears safe-retreat direction
-    printOutput(MESSAGES.transporterArrival, 'msg-good');
-    describeRoom(false);
-  }, 600);
-
-  return true;
-}
-
-/** Attempt to deactivate the bomb. */
-function cmdDeactivateBomb() {
-  if (GameState.flags.bombDeactivated) {
-    printOutput(MESSAGES.bombAlreadyDeactivated, 'msg-warn');
-    return false;
+  if (GS.t1 > 200 && GS.f5 === 0) {
+    exposeDeactivator();
   }
 
-  // Bomb must be in inventory OR in current room
-  const bombInInv  = GameState.inventory.includes('bomb');
-  const bombInRoom = ROOMS[GameState.currentRoom].items.includes('bomb');
-
-  if (!bombInInv && !bombInRoom) {
-    printOutput(MESSAGES.bombNoBomb, 'msg-warn');
-    return false;
+  // ── 5. Oxygen drain and death checks ──────────────────────────────────────
+  if (GS.f0 === 1) {
+    GS.t2 -= 5;
+    if (GS.t2 < 0) GS.t2 = 0;
   }
 
-  GameState.flags.bombDeactivated = true;
-
-  // Remove bomb from wherever it is
-  if (bombInInv) {
-    GameState.inventory.splice(GameState.inventory.indexOf('bomb'), 1);
-  }
-  if (bombInRoom) {
-    const ri = ROOMS[GameState.currentRoom].items.indexOf('bomb');
-    ROOMS[GameState.currentRoom].items.splice(ri, 1);
-  }
-  // Also remove from room 22 if it is still there
-  const r22 = ROOMS[22].items.indexOf('bomb');
-  if (r22 !== -1) ROOMS[22].items.splice(r22, 1);
-
-  printOutput(MESSAGES.bombDeactivated, 'msg-good');
-  updateInventoryPanel();
-  updateRoomItems();
-  return true;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// LOOK / EXAMINE
-// ─────────────────────────────────────────────────────────────────────────────
-
-function cmdLook() {
-  describeRoom(false);
-  return false;   // LOOK does not consume a turn
-}
-
-function cmdExamine(noun) {
-  if (!noun) {
-    printOutput('Examine what?', 'msg-warn');
-    return false;
-  }
-
-  // Search inventory first, then room (if lit)
-  const invId  = findItemByKeyword(noun, GameState.inventory);
-  const roomId = isRoomDark() ? null :
-    findItemByKeyword(noun, ROOMS[GameState.currentRoom].items);
-  const itemId = invId || roomId;
-
-  if (itemId) {
-    printOutput(ITEMS[itemId].description, 'msg-normal');
-    return false;  // examining does not consume a turn
-  }
-
-  // Allow examining the room itself
-  if (['room', 'area', 'surroundings', 'around'].includes(noun.toLowerCase())) {
-    cmdLook();
-    return false;
-  }
-
-  printOutput('You see nothing special about that.', 'msg-warn');
-  return false;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// INVENTORY
-// ─────────────────────────────────────────────────────────────────────────────
-
-function cmdInventory() {
-  if (GameState.inventory.length === 0) {
-    printOutput('You are not carrying anything.', 'msg-normal');
+  // Check oxygen death conditions
+  if (GS.f0 === 0) {
+    // Not consuming oxygen (dropped oxygen module)
+    if (GS.f9 === 1) {
+      // Seal blown: all station locations now need oxygen
+      if (GS.p > 21) { oxygenDeath(); return; }
+    }
+    // Surface / hanger locations always require oxygen
+    if (needsOxygen(GS.p)) { oxygenDeath(); return; }
   } else {
-    const lines = ['You are carrying:'];
-    GameState.inventory.forEach(id => {
-      const item = ITEMS[id];
-      if (item) lines.push('  ' + item.name);
-    });
-    const used = inventoryWeight();
-    lines.push('(' + used + ' of ' + GAME_CONFIG.inventoryLimit + ' slots used)');
-    printOutput(lines.join('\n'), 'msg-normal');
+    // Consuming oxygen — check for depletion
+    if (GS.t2 <= 0) {
+      if (GS.f9 === 1) {
+        // Seal blown: entire station needs oxygen too
+        oxygenDeath(); return;
+      }
+      // Normal: die only if outside or in hanger
+      if (needsOxygen(GS.p)) { oxygenDeath(); return; }
+    }
   }
-  return false;  // no turn consumed
+
+  // ── 6. Blown-seal notification on arrival at loc 38 ───────────────────────
+  if (GS.p === 38 && GS.r === 29 && GS.f9 === 0) {
+    GS.f9 = 1;
+    printOutput('You have just breached the air seal of the space station!', 'msg-warn');
+    printOutput('The station is now losing pressure. Oxygen is required everywhere.', 'msg-warn');
+  }
+
+  // ── 7. Display location ────────────────────────────────────────────────────
+  if (GS.f0 === 1) {
+    printOutput('Oxygen remaining: ' + GS.t2 + ' minutes.', 'msg-system');
+  }
+
+  printOutput('Present location:', 'msg-location-hdr');
+  const row = GS.m[GS.p];
+  for (let i = row[6]; i <= row[7]; i++) {
+    if (T[i]) printOutput(T[i], 'msg-location');
+  }
+  printHR();
+
+  // ── 8. Handle overlook: auto-drop illuminator ──────────────────────────────
+  if (GS.p === 2 && carrying(4)) {
+    GS.o[4] = 100; // lost forever (location 100 = off-map)
+    GS.c--;
+    printOutput('You dropped your illuminator over the edge!', 'msg-warn');
+    printOutput('You cannot retrieve it.', 'msg-warn');
+  }
+
+  // ── 9. Display items at location ──────────────────────────────────────────
+  for (let i = 1; i <= 14; i++) {
+    if (GS.o[i] === GS.p) {
+      printOutput('There is ' + ITEM_NAME[i] + ' here.', 'msg-item');
+    }
+  }
+
+  // ── 10. Robot logic ────────────────────────────────────────────────────────
+  robotTick();
+
+  updateUI();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HELP / QUIT / RESTART
+// ROBOT MOVEMENT
 // ─────────────────────────────────────────────────────────────────────────────
 
-function cmdHelp() {
-  printOutput(MESSAGES.help, 'msg-system');
-  return false;
+function robotTick() {
+  const robot = 5;
+  const rLoc  = GS.o[robot];
+
+  // Robot patrol movement (runs every turn)
+  if      (rLoc === 28) GS.o[robot] = 35;
+  else if (rLoc === 42) GS.o[robot] = 28;
+  else if (rLoc === 41) GS.o[robot] = 42;
+  else if (rLoc === 27) GS.o[robot] = 41;
+  else if (rLoc === 25) GS.o[robot] = 27;
+
+  // Robot at control center: open north exit from corridor 28
+  if (GS.o[robot] === 35) {
+    if (GS.p === 28) {
+      GS.m[28][0] = 35; // north from corridor 28 → control center
+    }
+  }
+
+  // Robot at loc 32 (initial): reacts to player entering
+  if (GS.o[robot] === 32 && GS.p === 32) {
+    if (carrying(13)) {
+      // Badge recognised: robot starts patrol, no attack
+      GS.o[robot] = 25;
+      printOutput('The robot scans your coded badge and steps aside.', 'msg-normal');
+    } else {
+      printOutput('The robot fails to recognise you.', 'msg-warn');
+      printOutput('It fires a phasor weapon at you!', 'msg-warn');
+      gameDeath('You have been vaporised by the robot.');
+    }
+  }
 }
 
-function cmdQuit() {
+// ─────────────────────────────────────────────────────────────────────────────
+// TIMED WORLD EVENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function exposeDeactivator() {
+  GS.f5 = 1;
+  // Place deactivator at loc 14 (dark area east of Posidonius)
+  GS.o[6] = 14;
+  // Open west exit from loc 14 → loc 2 (so player can escape)
+  GS.m[14][3] = 2;
+  // Reduce loc 14's displayed text to just the first line (less ominous hint)
+  GS.m[14][7] = 29; // T1=29
+  GS.m[14][6] = 29; // T2=29  (shows: "Somewhere east of Mare Serenitatis.")
+  printOutput('[A faint signal from the east has been detected.]', 'msg-system');
+}
+
+function bombDetonation() {
+  printOutput('A nuclear detonation has just occurred.', 'msg-bad');
+  gameDeath(null);
+}
+
+function asteroidDeath() {
+  printOutput('The moon base has just been destroyed by a large asteroid.', 'msg-bad');
+  gameDeath(null);
+}
+
+function powerFailure() {
+  printOutput('You have no power or power pack.', 'msg-bad');
+  printOutput('You have frozen to death.', 'msg-bad');
+  gameDeath(null);
+}
+
+function oxygenDeath() {
+  printOutput('Oxygen required here. None available.', 'msg-bad');
+  gameDeath(null);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEATH / WIN
+// ─────────────────────────────────────────────────────────────────────────────
+
+function gameDeath(extraMsg) {
+  if (extraMsg) printOutput(extraMsg, 'msg-bad');
+  printOutput('You have failed to survive.', 'msg-bad');
+  GS.gameOver = true;
+  updateUI();
   printBlank();
-  printOutput('Thanks for playing SURVIVAL. Goodbye.', 'msg-system');
-  GameState.flags.gameOver = true;
-  disableInput();
-  return false;
+  printOutput('Press RESTART to try again.', 'msg-system');
 }
 
-function cmdRestart() {
-  // Re-initialise all game data: reset room items from a clean copy
-  Object.keys(ROOMS).forEach(id => {
-    ROOMS[id].items = ROOM_ITEM_RESET[id] ? ROOM_ITEM_RESET[id].slice() : [];
-  });
-  initGame();
-  elTranscript.innerHTML = '';
-  printOutput(MESSAGES.welcome, 'msg-system');
-  describeRoom(false);
-  enableInput();
-  elInput.focus();
-  return false;
+function gameWin() {
+  GS.won = true;
+  GS.gameOver = true;
+  printOutput('Congratulations! You have just blasted off', 'msg-good');
+  printOutput('and are on your way to Earth.', 'msg-good');
+  printOutput('Your escape time: ' + GS.t1 + ' minutes.', 'msg-good');
+  printBlank();
+  printOutput('Press RESTART to play again.', 'msg-system');
+  updateUI();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ROBOT MECHANIC  (approved fairness fix #2)
+// COMMAND HANDLERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Called at the end of each valid turn while the player is in a robot-patrol room.
- * Two warning turns are given before the robot kills.
- * Carrying the badge suppresses all robot activity.
- */
-function processRobot() {
-  const room = ROOMS[GameState.currentRoom];
-  if (!room || !room.robotPatrol) {
-    // Player left the robot zone — reset warning counter
-    GameState.robotWarnings = null;
+/** Handle movement in direction d (0=N,1=S,2=E,3=W,4=U,5=D). */
+function cmdMove(dirIdx) {
+  const row  = GS.m[GS.p];
+  const dest = row[dirIdx];
+
+  if (!dest) {
+    printOutput("You can't go in that direction.", 'msg-warn');
     return;
   }
 
-  // Badge protects the player
-  if (GameState.inventory.includes('badge')) {
-    GameState.robotWarnings = null;
+  if (dest === 99) {
+    printOutput('You have fallen to your death.', 'msg-bad');
+    gameDeath(null);
     return;
   }
 
-  // No badge — trigger or advance warning
-  if (GameState.robotWarnings === null) {
-    GameState.robotWarnings = GAME_CONFIG.robotWarningTurns;
-    printOutput(MESSAGES.robotWarning1, 'msg-danger');
-    printOutput('(You have ' + GameState.robotWarnings + ' turn(s) to leave this area!)', 'msg-warn');
+  // ── Special movement checks (BASIC lines 1180-1220) ──────────────────────
+
+  // Meteor shower: leaving loc 12 going west to loc 13
+  if (GS.p === 12 && dest === 13 && GS.f2 === 0) {
+    printOutput('There is a meteor shower.', 'msg-warn');
+    printOutput('Your space suit has developed a leak...', 'msg-warn');
+    printOutput('Try to seal it with something you carry. (Use: USE SEALANT)', 'msg-warn');
+    GS.obstacle = {
+      requiredItem: 2,
+      onSuccess: () => {
+        printOutput('Your suit is now sealed.', 'msg-good');
+        GS.f2 = 1;
+        doMove(dest);
+      },
+      onFail: () => {
+        printOutput('Your suit loses pressure.', 'msg-bad');
+        gameDeath('You have suffocated.');
+      },
+    };
     return;
   }
 
-  GameState.robotWarnings--;
-
-  if (GameState.robotWarnings === 1) {
-    printOutput(MESSAGES.robotWarning2, 'msg-danger');
-    printOutput('(LAST WARNING — leave NOW!)', 'msg-warn');
+  // Locked shed: leaving loc 13 going west to loc 22
+  if (GS.p === 13 && dest === 22 && GS.f1 === 0) {
+    printOutput('The shed is locked!', 'msg-warn');
+    printOutput('You need something to open it. (Use: USE KEY)', 'msg-warn');
+    GS.obstacle = {
+      requiredItem: 1,
+      onSuccess: () => {
+        printOutput('You are in the shed air lock.', 'msg-good');
+        GS.f1 = 1;
+        doMove(dest);
+      },
+      onFail: () => {
+        printOutput('Your attempt fails.', 'msg-warn');
+        GS.obstacle = null; // non-fatal; player can try again
+      },
+      nonFatal: true,
+    };
     return;
   }
 
-  if (GameState.robotWarnings <= 0) {
-    // Death
-    GameState.flags.gameOver = true;
-    printBlank();
-    printOutput(MESSAGES.dieRobot, 'msg-bad');
-    disableInput();
+  // Dark ventilator shaft: leaving loc 22 going down to loc 23
+  if (GS.p === 22 && dest === 23 && GS.f4 === 0) {
+    printOutput('It is dangerous to proceed in the dark.', 'msg-warn');
+    printOutput('You need a light source. (Use: USE ILLUMINATOR)', 'msg-warn');
+    GS.obstacle = {
+      requiredItem: 4,
+      onSuccess: () => {
+        printOutput('The shaft is now illuminated.', 'msg-good');
+        GS.f4 = 1;
+        doMove(dest);
+      },
+      onFail: () => {
+        printOutput('You plunge into the darkness.', 'msg-bad');
+        gameDeath('You have fallen to your death.');
+      },
+    };
+    return;
   }
+
+  // Shaft darkness check: any movement from loc 23 requires illuminator
+  if (GS.p === 23 && !carrying(4)) {
+    printOutput('Without your illuminator you cannot navigate the shaft.', 'msg-bad');
+    gameDeath('You have fallen to your death.');
+    return;
+  }
+
+  // Laser beam: leaving loc 29 going west to loc 37
+  if (GS.p === 29 && dest === 37 && GS.f3 === 0) {
+    printOutput('There is a laser beam here. Passage is not possible with the beam present.', 'msg-warn');
+    printOutput('You need something to deflect it. (Use: USE MIRROR)', 'msg-warn');
+    GS.obstacle = {
+      requiredItem: 12,
+      onSuccess: () => {
+        printOutput('The beam is now deflected.', 'msg-good');
+        GS.f3 = 1;
+        doMove(dest);
+      },
+      onFail: () => {
+        printOutput('You have been zapped by the laser.', 'msg-bad');
+        gameDeath(null);
+      },
+    };
+    return;
+  }
+
+  doMove(dest);
+}
+
+function doMove(dest) {
+  GS.r = GS.p;
+  GS.p = dest;
+  beginTurn();
+}
+
+/** GET / TAKE / KEEP */
+function cmdGet(input) {
+  const i = parseItem(input);
+
+  if (!i) {
+    const noun = input.slice(input.indexOf(' ') + 1).trim();
+    if (!noun) { printOutput('Get what?', 'msg-warn'); return; }
+    printOutput("I don't recognise '" + noun + "'.", 'msg-warn');
+    return;
+  }
+
+  if (GS.o[i] !== GS.p) {
+    const noun = input.slice(input.indexOf(' ') + 1).trim();
+    printOutput('There is no ' + noun + ' here!', 'msg-warn');
+    return;
+  }
+
+  // Special items
+  if (i === 5)  { printOutput("You can't carry a robot!", 'msg-warn'); return; }
+  if (i === 10) { printOutput("You can't get the message; it's on the terminal screen.", 'msg-warn'); return; }
+
+  // Carry limit: 4 items max (BASIC: c > 3)
+  if (GS.c >= 4) { printOutput("You can't carry any more!", 'msg-warn'); return; }
+
+  // Power supply: can only carry one at a time
+  if (i === 11) {
+    if (carrying(14)) { printOutput("You can't have more than one power supply.", 'msg-warn'); return; }
+  }
+  if (i === 14) {
+    if (carrying(11)) { printOutput("You can't have more than one power supply.", 'msg-warn'); return; }
+  }
+
+  GS.o[i] = 99;
+  GS.c++;
+  if (i === 3) GS.f0 = 1; // picking up oxygen module activates it
+  printOutput('OK.', 'msg-good');
+  updateUI();
+}
+
+/** DROP / LEAVE / PUT */
+function cmdDrop(input) {
+  const i = parseItem(input);
+
+  if (!i) {
+    const noun = input.slice(input.indexOf(' ') + 1).trim();
+    if (!noun) { printOutput('Drop what?', 'msg-warn'); return; }
+    printOutput("I don't recognise '" + noun + "'.", 'msg-warn');
+    return;
+  }
+
+  if (!carrying(i)) {
+    const noun = input.slice(input.indexOf(' ') + 1).trim();
+    printOutput("You don't have " + noun + '!', 'msg-warn');
+    return;
+  }
+
+  // Dropping a power supply on the surface or with blown seal = death
+  if (i === 11 || i === 14) {
+    if (needsPower(GS.p)) {
+      printOutput('You need power here! You cannot drop your power supply.', 'msg-warn');
+      printOutput('You have frozen to death.', 'msg-bad');
+      gameDeath(null);
+      return;
+    }
+    if (GS.f9 === 1) {
+      printOutput('The station requires power with the seal blown.', 'msg-warn');
+      printOutput('You have frozen to death.', 'msg-bad');
+      gameDeath(null);
+      return;
+    }
+  }
+
+  GS.o[i] = GS.p;
+  GS.c--;
+  if (i === 3) GS.f0 = 0; // dropping oxygen module deactivates it
+  printOutput('OK.', 'msg-good');
+  updateUI();
+}
+
+/** INVENTORY */
+function cmdInventory() {
+  let found = false;
+  for (let i = 1; i <= 14; i++) {
+    if (carrying(i)) {
+      if (!found) printOutput('You are carrying:', 'msg-normal');
+      printOutput('  ' + ITEM_NAME[i], 'msg-item');
+      found = true;
+    }
+  }
+  if (!found) printOutput('You are carrying nothing.', 'msg-normal');
+}
+
+/** LOOK / DESCRIBE — re-display current location */
+function cmdLook() {
+  // Reprint location description without ticking the clock
+  printHR();
+  const row = GS.m[GS.p];
+  for (let i = row[6]; i <= row[7]; i++) {
+    if (T[i]) printOutput(T[i], 'msg-location');
+  }
+  printHR();
+  for (let i = 1; i <= 14; i++) {
+    if (GS.o[i] === GS.p) {
+      printOutput('There is ' + ITEM_NAME[i] + ' here.', 'msg-item');
+    }
+  }
+  updateUI();
+}
+
+/** TRANSPORT (from transporter room, loc 36) */
+function cmdTransport() {
+  if (GS.p !== 36) {
+    printOutput("You can only transport from the transporter room.", 'msg-warn');
+    return;
+  }
+  if (carrying(8)) {
+    printOutput("You can't transport while carrying the transporter unit.", 'msg-warn');
+    return;
+  }
+  const dest = GS.o[8]; // teleport to wherever the transporter unit is
+  if (!dest || dest === 99 || dest > 42) {
+    printOutput('The transporter has no destination locked in.', 'msg-warn');
+    return;
+  }
+  printOutput('Beaming in progress...', 'msg-good');
+  GS.r = GS.p;
+  GS.p = dest;
+  beginTurn();
+}
+
+/** DIG (at Burg Crater, loc 10) */
+function cmdDig() {
+  if (GS.p !== 10) {
+    printOutput("You can't dig here.", 'msg-warn');
+    return;
+  }
+  if (GS.o[9] !== 0 && GS.o[9] !== GS.p) {
+    printOutput('You have already dug here.', 'msg-warn');
+    return;
+  }
+  GS.o[9] = 10; // dilithium crystals appear
+  printOutput('You dig into the soft surface and find something!', 'msg-good');
+  updateUI();
+}
+
+/** FUEL (at engine room, loc 19) */
+function cmdFuel() {
+  if (GS.p !== 19) {
+    printOutput("You can't fuel the rocket from here.", 'msg-warn');
+    return;
+  }
+  if (!carrying(9)) {
+    printOutput('You have nothing to fuel it with!', 'msg-warn');
+    return;
+  }
+  GS.o[9] = 98; // fuel-loaded sentinel (no longer in inventory)
+  GS.c--;
+  printOutput('Fuel is now loaded.', 'msg-good');
+  updateUI();
+}
+
+/** READ COMPUTER (at station control center, loc 35) */
+function cmdRead(input) {
+  if (GS.p !== 35) {
+    printOutput("There is nothing here to read.", 'msg-warn');
+    return;
+  }
+  const i = parseItem(input);
+  if (i !== 10 && i !== 0) {
+    // Tried to read something other than the computer
+    printOutput("There is nothing to do it to!", 'msg-warn');
+    return;
+  }
+  // Item 0 means just "read" with no noun — allow it at the terminal
+  if (i === 0 && GS.p !== 35) {
+    printOutput("There is nothing here to read.", 'msg-warn');
+    return;
+  }
+
+  // Computer terminal readout
+  if (GS.v === 0) {
+    printOutput('STATION COMPUTER LOG:', 'msg-system');
+    printOutput('Bomb deactivator located somewhere east of', 'msg-normal');
+    printOutput('the space station, on the moon\'s surface.', 'msg-normal');
+    printOutput('Local fuel source: dilithium crystals.', 'msg-normal');
+  } else if (GS.v === 1) {
+    printOutput('STATION COMPUTER LOG:', 'msg-system');
+    printOutput('Local fuel source: dilithium crystals.', 'msg-normal');
+  } else {
+    printOutput('STATION COMPUTER LOG:', 'msg-system');
+    printOutput('Dilithium found in soft surfaces.', 'msg-normal');
+  }
+  if (GS.f7 === 1) {
+    printOutput('Spacecraft repairs completed.', 'msg-good');
+  }
+  GS.v++;
+}
+
+/** DEACTIVATE BOMB */
+function cmdDeactivate() {
+  if (!carrying(6)) {
+    printOutput('You have nothing to do it with!', 'msg-warn');
+    return;
+  }
+  // Bomb must be at current location (not required to carry it)
+  if (GS.o[7] !== GS.p) {
+    printOutput("There is no bomb here to deactivate.", 'msg-warn');
+    return;
+  }
+  GS.f7 = 1;
+  GS.o[7] = 99; // bomb now "in hand" / disarmed
+  GS.c++;
+  printOutput('Bomb is now deactivated.', 'msg-good');
+  updateUI();
+}
+
+/** BLAST OFF (from spacecraft control room, loc 21) */
+function cmdBlast() {
+  if (GS.p !== 21) {
+    printOutput("You can't blast off from here.", 'msg-warn');
+    return;
+  }
+  if (GS.o[9] !== 98) {
+    printOutput('Your spacecraft has no fuel!', 'msg-warn');
+    return;
+  }
+  if (GS.f7 === 0) {
+    printOutput('Repairs not yet complete.', 'msg-warn');
+    return;
+  }
+  gameWin();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RESOURCE TICK
+// INPUT PARSER
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Decrement resources and check for death conditions. Returns false if game over. */
-function tickResources() {
-  GameState.oxygen = Math.max(0, GameState.oxygen - 1);
-  GameState.power  = Math.max(0, GameState.power  - 1);
+const DIR_MAP = {
+  n: 0, north: 0,
+  s: 1, south: 1,
+  e: 2, east:  2,
+  w: 3, west:  3,
+  u: 4, up:    4,
+  d: 5, down:  5,
+};
 
-  if (GameState.oxygen <= 0) {
-    GameState.flags.gameOver = true;
-    printBlank();
-    printOutput(MESSAGES.dieOxygen, 'msg-bad');
-    disableInput();
-    return false;
-  }
+function processInput(rawInput) {
+  if (GS.gameOver) return;
 
-  if (GameState.power <= 0 && !GameState.flags.powerRestored) {
-    GameState.flags.gameOver = true;
-    printBlank();
-    printOutput(MESSAGES.diePower, 'msg-bad');
-    disableInput();
-    return false;
-  }
-
-  // Low oxygen warnings
-  if (GameState.oxygen === 30) {
-    printOutput('WARNING: Oxygen reserves critically low!', 'msg-danger');
-  } else if (GameState.oxygen === 10) {
-    printOutput('CRITICAL: Oxygen almost gone — you are about to die!', 'msg-danger');
-  }
-
-  updateHUD();
-  return true;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TURN PROCESSOR
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Called after any action that consumes a turn.
- * Ticks resources, processes robot, checks win state.
- */
-function onTurnEnd() {
-  GameState.moves++;
-
-  if (!tickResources()) return;   // game over from resource death
-
-  processRobot();
-
-  if (GameState.flags.gameOver) return;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PARSER
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Tokenise and dispatch a player command.
- * Supports:  VERB  /  VERB NOUN  /  abbreviations
- * @param {string} rawInput — exactly what the player typed
- */
-function parseInput(rawInput) {
-  const input = rawInput.trim();
+  const input = rawInput.trim().toLowerCase();
   if (!input) return;
 
-  // Echo input to transcript
-  printOutput('> ' + input, 'msg-echo');
-
-  // History
-  if (GameState.inputHistory[0] !== input) {
-    GameState.inputHistory.unshift(input);
-    if (GameState.inputHistory.length > 50) GameState.inputHistory.pop();
+  // ── Save to history ────────────────────────────────────────────────────────
+  if (GS.inputHistory[GS.inputHistory.length - 1] !== rawInput) {
+    GS.inputHistory.push(rawInput);
   }
-  GameState.historyIndex = -1;
+  GS.historyIndex = GS.inputHistory.length;
 
-  if (GameState.flags.gameOver) {
-    printOutput('The game is over. Type RESTART to play again.', 'msg-system');
+  // Echo the command
+  printOutput('> ' + rawInput, 'msg-cmd');
+
+  // ── Obstacle mode: next input must be "use/try <item>" ────────────────────
+  if (GS.obstacle) {
+    const obs = GS.obstacle;
+    GS.obstacle = null;
+
+    const verb3 = input.slice(0, 3);
+    if (verb3 === 'use' || verb3 === 'try') {
+      const i = parseItem(input);
+      if (i < 1) {
+        printOutput("What item?", 'msg-warn');
+        GS.obstacle = obs; // stay in obstacle mode
+        return;
+      }
+      if (!carrying(i)) {
+        printOutput("You don't have " + ITEM_NAME[i] + '!', 'msg-warn');
+        if (obs.nonFatal) { GS.obstacle = obs; } else { obs.onFail(); }
+        return;
+      }
+      if (i === obs.requiredItem) {
+        obs.onSuccess();
+      } else {
+        if (obs.nonFatal) {
+          printOutput('Your attempt fails.', 'msg-warn');
+          GS.obstacle = obs; // let them try again (non-fatal)
+        } else {
+          obs.onFail();
+        }
+      }
+    } else if (obs.nonFatal) {
+      // Non-fatal obstacle: other commands allowed, obstacle cleared
+      printOutput("The obstacle is still there. Try: USE <item>", 'msg-warn');
+      GS.obstacle = obs;
+    } else {
+      // Fatal obstacle: anything other than use/try = death
+      obs.onFail();
+    }
     return;
   }
 
-  const tokens = input.toLowerCase().split(/\s+/);
-  const verb   = tokens[0];
-  // Noun: everything after the first word, joined back (handles "TAKE OXYGEN TANK")
-  const noun   = tokens.slice(1).join(' ');
+  // ── Normal command parsing ─────────────────────────────────────────────────
+  const verb3 = input.slice(0, 3);
+  const firstWord = input.split(' ')[0];
 
-  let turnConsumed = false;
-
-  switch (verb) {
-    // ── Movement ─────────────────────────────────────────────────────────────
-    case 'n': case 'north': case 'go':
-      if (verb === 'go') {
-        // GO NORTH etc.
-        const dirAlias = DIR_ALIASES[noun];
-        if (dirAlias) {
-          turnConsumed = cmdGo(dirAlias);
-        } else {
-          printOutput('Go where? (N, S, E, W)', 'msg-warn');
-        }
-      } else {
-        turnConsumed = cmdGo(DIR_ALIASES[verb]);
-      }
-      break;
-    case 's': case 'south': turnConsumed = cmdGo('s'); break;
-    case 'e': case 'east':  turnConsumed = cmdGo('e'); break;
-    case 'w': case 'west':  turnConsumed = cmdGo('w'); break;
-    case 'u': case 'up':    turnConsumed = cmdGo('u'); break;
-    case 'd': case 'down':  turnConsumed = cmdGo('d'); break;
-
-    // ── Items ─────────────────────────────────────────────────────────────────
-    case 'get': case 'take': case 'pick':
-      turnConsumed = cmdGet(noun || tokens[1]);
-      break;
-    case 'drop': case 'put':
-      turnConsumed = cmdDrop(noun);
-      break;
-    case 'use': case 'activate': case 'operate': case 'insert': case 'install':
-      turnConsumed = cmdUse(noun);
-      break;
-
-    // ── Information ───────────────────────────────────────────────────────────
-    case 'look': case 'l':
-      cmdLook();
-      break;
-    case 'examine': case 'ex': case 'x': case 'inspect': case 'read':
-      cmdExamine(noun);
-      break;
-    case 'inventory': case 'inv': case 'i':
-      cmdInventory();
-      break;
-    case 'help': case '?':
-      cmdHelp();
-      break;
-
-    // ── Meta ──────────────────────────────────────────────────────────────────
-    case 'quit': case 'exit': case 'q':
-      cmdQuit();
-      break;
-    case 'restart': case 'new':
-      cmdRestart();
-      break;
-
-    // ── Convenient shortcuts ──────────────────────────────────────────────────
-    case 'score':
-      printOutput('Moves: ' + GameState.moves +
-        '  Oxygen: ' + GameState.oxygen +
-        '  Power: '  + GameState.power, 'msg-system');
-      break;
-
-    default:
-      // Try to interpret single token as a direction
-      if (DIR_ALIASES[verb]) {
-        turnConsumed = cmdGo(DIR_ALIASES[verb]);
-      } else {
-        printOutput(
-          'I don\'t understand "' + input + '". Type HELP for a list of commands.',
-          'msg-warn'
-        );
-      }
+  // Quit
+  if (verb3 === 'qui' || verb3 === 'end') {
+    printOutput('Thanks for playing!', 'msg-system');
+    GS.gameOver = true;
+    updateUI();
+    return;
   }
 
-  if (turnConsumed) {
-    onTurnEnd();
+  // Direction
+  if (firstWord in DIR_MAP) {
+    cmdMove(DIR_MAP[firstWord]);
+    return;
+  }
+  // Single-letter directions covered above via firstWord, but handle 'u'/'d'
+  // which might look like short words
+  if (DIR_MAP[verb3] !== undefined && input.length <= 5) {
+    cmdMove(DIR_MAP[verb3]);
+    return;
+  }
+
+  // Get
+  if (verb3 === 'get' || verb3 === 'tak' || verb3 === 'kee') {
+    cmdGet(input); return;
+  }
+
+  // Drop
+  if (verb3 === 'dro' || verb3 === 'lea' || verb3 === 'put') {
+    cmdDrop(input); return;
+  }
+
+  // Inventory
+  if (verb3 === 'inv') { cmdInventory(); return; }
+
+  // Look
+  if (verb3 === 'loo' || verb3 === 'des') { cmdLook(); return; }
+
+  // Transport
+  if (verb3 === 'tra' && input.length <= 9) { cmdTransport(); return; }
+
+  // Dig
+  if (verb3 === 'dig') { cmdDig(); return; }
+
+  // Fuel
+  if (verb3 === 'fue') { cmdFuel(); return; }
+
+  // Read
+  if (verb3 === 'rea') { cmdRead(input); return; }
+
+  // Deactivate
+  if (verb3 === 'dea') { cmdDeactivate(); return; }
+
+  // Blast off
+  if (verb3 === 'bla') { cmdBlast(); return; }
+
+  // Use / Try (outside obstacle mode — attempt to use something contextually)
+  if (verb3 === 'use' || verb3 === 'try') {
+    printOutput("There is nothing here that requires that.", 'msg-warn');
+    return;
+  }
+
+  printOutput('Invalid command. Try: N S E W U D, GET, DROP, INVENTORY, LOOK,', 'msg-warn');
+  printOutput('TRANSPORT, DIG, FUEL, READ, DEACTIVATE, BLAST, or USE <item>.', 'msg-warn');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INTRO / INSTRUCTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function showInstructions() {
+  printOutput('SURVIVAL — Moon Survival', 'msg-good');
+  printOutput('Original BASIC game by Stewart Rush, 1981', 'msg-system');
+  printBlank();
+  printOutput('You have crash landed on the moon.', 'msg-normal');
+  printOutput('You have limited supplies and time in which to survive.', 'msg-normal');
+  printBlank();
+  printOutput('MOVEMENT: Type N, S, E, W, U, D  —or—  NORTH, SOUTH, etc.', 'msg-normal');
+  printOutput('ACTIONS : GET <item>, DROP <item>, INVENTORY', 'msg-normal');
+  printOutput('SPECIAL : DIG, FUEL, READ <computer>, DEACTIVATE, BLAST', 'msg-normal');
+  printOutput('OBSTACLE: When prompted, type  USE <item>  or  TRY <item>', 'msg-normal');
+  printBlank();
+  printOutput('Commands may be abbreviated to their first 3 letters.', 'msg-normal');
+  printOutput('Once you survive, aim for the shortest escape time!', 'msg-normal');
+  printOutput("*** GOOD LUCK ***", 'msg-good');
+  printHR();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RESTART
+// ─────────────────────────────────────────────────────────────────────────────
+
+function restartGame() {
+  elTranscript.innerHTML = '';
+  initGame();
+  showInstructions();
+  beginTurn();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KEYBOARD INPUT
+// ─────────────────────────────────────────────────────────────────────────────
+
+function handleKeyDown(e) {
+  if (e.key === 'Enter') {
+    const val = elInput.value;
+    elInput.value = '';
+    processInput(val);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (GS.historyIndex > 0) {
+      GS.historyIndex--;
+      elInput.value = GS.inputHistory[GS.historyIndex] || '';
+    }
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (GS.historyIndex < GS.inputHistory.length - 1) {
+      GS.historyIndex++;
+      elInput.value = GS.inputHistory[GS.historyIndex] || '';
+    } else {
+      GS.historyIndex = GS.inputHistory.length;
+      elInput.value = '';
+    }
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// INPUT HANDLING
-// ─────────────────────────────────────────────────────────────────────────────
-
-function submitCommand(text) {
-  if (!text) return;
-  elInput.value = '';
-  parseInput(text);
-  elInput.focus();
-}
-
-function disableInput() {
-  elInput.disabled = true;
-  // Disable all direction buttons
-  document.querySelectorAll('.dir-btn').forEach(b => b.disabled = true);
-}
-
-function enableInput() {
-  elInput.disabled = false;
-  elInput.focus();
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ROOM ITEM RESET TABLE
-// ─────────────────────────────────────────────────────────────────────────────
-// Built once at startup so restart() can restore items to their original rooms.
-
-let ROOM_ITEM_RESET = {};
-
-function buildResetTable() {
-  Object.keys(ROOMS).forEach(id => {
-    ROOM_ITEM_RESET[id] = ROOMS[id].items.slice();
-  });
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// INITIALISATION
+// INIT
 // ─────────────────────────────────────────────────────────────────────────────
 
 window.addEventListener('load', () => {
-  // Cache DOM references
   elTranscript    = document.getElementById('transcript');
   elInput         = document.getElementById('command-input');
-  elOxygen        = document.getElementById('hud-oxygen');
+  elO2            = document.getElementById('hud-oxygen');
   elPower         = document.getElementById('hud-power');
-  elMoves         = document.getElementById('hud-moves');
+  elTime          = document.getElementById('hud-moves');
   elLocation      = document.getElementById('hud-location');
   elInventoryList = document.getElementById('inventory-list');
-  elDirButtons    = document.querySelectorAll('.dir-btn');
-  elRoomItems     = document.getElementById('room-items-list');
-  elTakeBtn       = document.getElementById('btn-take');
-  elUseBtn        = document.getElementById('btn-use');
-  elDropBtn       = document.getElementById('btn-drop');
+  elRoomList      = document.getElementById('room-items-list');
 
-  // Build the reset table before any game state is initialised
-  buildResetTable();
-
-  // Initialise game state
-  initGame();
-
-  // Wire up the text input
-  elInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      submitCommand(elInput.value);
-      return;
-    }
-    // Command history navigation
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (GameState.historyIndex < GameState.inputHistory.length - 1) {
-        GameState.historyIndex++;
-        elInput.value = GameState.inputHistory[GameState.historyIndex];
-      }
-    }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (GameState.historyIndex > 0) {
-        GameState.historyIndex--;
-        elInput.value = GameState.inputHistory[GameState.historyIndex];
-      } else {
-        GameState.historyIndex = -1;
-        elInput.value = '';
-      }
-    }
-  });
-
-  // Wire up direction buttons
+  // Direction buttons
   document.querySelectorAll('.dir-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      if (GameState.flags.gameOver) return;
       const dir = btn.dataset.dir;
-      if (dir) submitCommand(dir.toUpperCase());
+      if (dir in DIR_MAP) processInput(dir);
     });
   });
 
-  // Wire up restart button in HUD
-  const restartBtn = document.getElementById('btn-restart');
-  if (restartBtn) {
-    restartBtn.addEventListener('click', () => {
-      if (confirm('Restart the game? All progress will be lost.')) {
-        cmdRestart();
-      }
-    });
-  }
+  // Quick-action buttons
+  const btnTake = document.getElementById('btn-take');
+  const btnUse  = document.getElementById('btn-use');
+  const btnDrop = document.getElementById('btn-drop');
+  const btnLook = document.getElementById('btn-look');
+  const btnInv  = document.getElementById('btn-inv');
 
-  // Wire up quick-action buttons
-  initQuickActions();
+  if (btnTake) btnTake.addEventListener('click', () => {
+    elInput.value = 'get ';
+    elInput.focus();
+  });
+  if (btnUse) btnUse.addEventListener('click', () => {
+    elInput.value = 'use ';
+    elInput.focus();
+  });
+  if (btnDrop) btnDrop.addEventListener('click', () => {
+    elInput.value = 'drop ';
+    elInput.focus();
+  });
+  if (btnLook) btnLook.addEventListener('click', () => processInput('look'));
+  if (btnInv)  btnInv.addEventListener('click',  () => processInput('inventory'));
+
+  // Restart button
+  const btnRestart = document.getElementById('btn-restart');
+  if (btnRestart) btnRestart.addEventListener('click', restartGame);
+
+  // Command input
+  elInput.addEventListener('keydown', handleKeyDown);
 
   // Start the game
-  printOutput(MESSAGES.welcome, 'msg-system');
-  describeRoom(false);
+  restartGame();
   elInput.focus();
 });

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SURVIVAL — Space Station Omega</title>
+  <title>SURVIVAL — Moon Survival</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,7 +17,7 @@
     <div id="hud-stats">
       <span id="hud-oxygen"  class="hud-stat">O₂: --</span>
       <span id="hud-power"   class="hud-stat">PWR: --</span>
-      <span id="hud-moves"   class="hud-stat hud-moves">MOVES: 0</span>
+      <span id="hud-moves"   class="hud-stat hud-moves">TIME: 0 min</span>
     </div>
 
     <div id="hud-location-wrap">
@@ -38,8 +38,10 @@
       <!-- Quick-action buttons sit above the input line -->
       <div id="quick-actions">
         <span class="qa-label">QUICK:</span>
+        <button id="btn-look" class="qa-btn" title="Look around current location">LOOK</button>
+        <button id="btn-inv"  class="qa-btn" title="Show inventory">INV</button>
         <button id="btn-take" class="qa-btn" title="Pick up an item from the room">TAKE</button>
-        <button id="btn-use"  class="qa-btn" title="Use an item from your inventory">USE</button>
+        <button id="btn-use"  class="qa-btn" title="Use an item (for obstacles)">USE</button>
         <button id="btn-drop" class="qa-btn" title="Drop an item from your inventory">DROP</button>
       </div>
 
@@ -89,7 +91,7 @@
       <!-- Inventory -->
       <section id="inventory-panel" aria-label="Inventory">
         <div class="panel-heading">INVENTORY</div>
-        <div id="inv-capacity" class="inv-capacity">0 / 6 slots</div>
+        <div id="inv-capacity" class="inv-capacity">0 / 4 items</div>
         <ul id="inventory-list" class="item-list"></ul>
       </section>
 
