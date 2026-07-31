@@ -27,6 +27,19 @@
 'use strict';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DIFFICULTY / CONFIGURATION
+// Set before game start; locked once the game begins.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DIFFICULTY_PRESETS = {
+  easy:     { startOxygen: 300, startPower: 350, startPack: 250, maxItems: 8 },
+  standard: { startOxygen: 205, startPower: 230, startPack: 150, maxItems: 6 },
+  difficult:{ startOxygen: 100, startPower: 150, startPack:  75, maxItems: 4 },
+};
+
+var cfg = Object.assign({}, DIFFICULTY_PRESETS.standard);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GAME STATE
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -38,9 +51,9 @@ function initGame() {
     p:  1,      // current location
     r:  1,      // previous location
     t1: 0,      // elapsed time (minutes) — incremented BEFORE display
-    t2: 205,    // oxygen remaining (minutes)
-    p1: 230,    // power unit charge
-    p2: 150,    // power pack charge
+    t2: cfg.startOxygen,  // oxygen remaining (minutes)
+    p1: cfg.startPower,   // power unit charge
+    p2: cfg.startPack,    // power pack charge
     v:  0,      // computer terminal reads
     c:  2,      // items carried  (starts 2: oxygen module + power unit)
 
@@ -71,7 +84,8 @@ function initGame() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 let elTranscript, elInput, elO2, elPower, elTime, elLocation,
-    elInventoryList, elRoomList, elDirButtons;
+    elInventoryList, elRoomList, elDirButtons,
+    elLocName, elLocDesc, elLocItems, elLocExits, elLocRes;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OUTPUT HELPERS
@@ -165,7 +179,7 @@ function updateInventory() {
     }
   }
   const cap = document.getElementById('inv-capacity');
-  if (cap) cap.textContent = count + ' / 4 items';
+  if (cap) cap.textContent = count + ' / ' + cfg.maxItems + ' items';
 }
 
 function updateRoomItems() {
@@ -198,6 +212,57 @@ function updateUI() {
   updateDirButtons();
   updateInventory();
   updateRoomItems();
+  updateLocationPanel();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOCATION PANEL  (fixed panel that always shows current room state)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function updateLocationPanel() {
+  if (!elLocName) return;
+
+  // Room name
+  elLocName.textContent = LOC_NAME[GS.p] || ('Location ' + GS.p);
+
+  // Description lines
+  elLocDesc.innerHTML = '';
+  const row = GS.m[GS.p];
+  if (row) {
+    for (let i = row[6]; i <= row[7]; i++) {
+      if (T[i]) {
+        // Each T entry may contain \n for line breaks
+        T[i].split('\n').forEach(line => {
+          const d = document.createElement('div');
+          d.textContent = line;
+          elLocDesc.appendChild(d);
+        });
+      }
+    }
+  }
+
+  // Items present
+  elLocItems.innerHTML = '';
+  for (let i = 1; i <= 14; i++) {
+    if (GS.o[i] === GS.p) {
+      const d = document.createElement('div');
+      d.className = 'loc-item';
+      d.textContent = '\u25b6 ' + ITEM_NAME[i];
+      elLocItems.appendChild(d);
+    }
+  }
+
+  // Available exits
+  const DNAMES = ['N','S','E','W','U','D'];
+  const exits = DNAMES.filter((_, i) => row && row[i] > 0 && row[i] !== 99);
+  elLocExits.textContent = exits.length ? 'Exits: ' + exits.join('  ') : 'Exits: none';
+
+  // Resources
+  const parts = [];
+  if (GS.f0 === 1) parts.push('O\u2082: ' + GS.t2 + ' min');
+  if (carrying(11)) parts.push('PWR: ' + GS.p1 + 'u');
+  if (carrying(14)) parts.push('PKT: ' + GS.p2 + 'u');
+  elLocRes.textContent = parts.join('   ');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -233,78 +298,63 @@ function carrying(i) { return GS.o[i] === 99; }
 // ─────────────────────────────────────────────────────────────────────────────
 
 function beginTurn() {
-  // ── 1. Print elapsed time and resource levels ──────────────────────────────
+  // ── 1. Print elapsed time and resource levels to transcript ───────────────
   printBlank();
   printOutput('Elapsed time: ' + GS.t1 + ' minutes.', 'msg-system');
   if (carrying(11)) printOutput('Power unit: ' + GS.p1 + ' units.', 'msg-system');
   if (carrying(14)) printOutput('Power pack: ' + GS.p2 + ' units.', 'msg-system');
 
-  // ── 2. Advance time and drain resources ────────────────────────────────────
+  // ── 2. Advance time and drain resources ───────────────────────────────────
   GS.t1 += 5;
-  // BASIC 690/700 drain a supply only while it holds more than 5 units, so a
-  // small reserve always remains. Draining to exactly 0 (as the Big Computer
-  // Games listing does) makes the game unwinnable, because the spare power
-  // pack sits behind the laser deep inside the space station.
   if (carrying(11) && GS.p1 > 5) GS.p1 -= 5;
   if (carrying(14) && GS.p2 > 5) GS.p2 -= 5;
 
   // ── 3. Check power failure (BASIC 710/720 → 3680) ─────────────────────────
-  // Running out of power is only fatal where warmth is needed: on the surface
-  // and in the wrecked ship (p < 22), or anywhere once the seal is blown.
   if ((carrying(11) && GS.p1 === 0) || (carrying(14) && GS.p2 === 0)) {
     if (powerFatal(GS.p, GS.f9)) { powerFailure(); return; }
   }
 
-  // ── 4. Timed world events ──────────────────────────────────────────────────
+  // ── 4. Oxygen drain ────────────────────────────────────────────────────────
+  if (GS.f0 === 1) {
+    GS.t2 -= 5;
+    if (GS.t2 < 0) GS.t2 = 0;
+  }
+
+  // ── 5. Oxygen death (checked BEFORE timed events to avoid confusing output)
+  if (GS.f0 === 0 || GS.t2 <= 0) {
+    if (GS.f9 === 1 && GS.p > 21) { oxygenDeath(); return; }
+    if (needsOxygen(GS.p)) { oxygenDeath(); return; }
+    if (GS.p === 38 && GS.r !== 39) { oxygenDeath(); return; }
+  }
+
+  // ── 6. Timed world events ──────────────────────────────────────────────────
   if (GS.t1 > 400) { asteroidDeath(); return; }
 
   if (GS.t1 > 350) {
     if (GS.f7 === 0) { bombDetonation(); return; }
-    // Bomb already deactivated — continue
   }
 
   if (GS.t1 > 200 && GS.f5 === 0) {
     exposeDeactivator();
   }
 
-  // ── 5. Oxygen drain and death checks (BASIC 760-830) ──────────────────────
-  if (GS.f0 === 1) {
-    GS.t2 -= 5;
-    if (GS.t2 < 0) GS.t2 = 0;
-  }
-
-  // Breathing checks only matter when no oxygen is being consumed: either the
-  // module was dropped (f0 = 0) or the supply has run out.
-  if (GS.f0 === 0 || GS.t2 <= 0) {
-    // Seal blown: every station location needs oxygen (BASIC 800/810)
-    if (GS.f9 === 1 && GS.p > 21) { oxygenDeath(); return; }
-    // Moon surface always needs oxygen (BASIC 820)
-    if (needsOxygen(GS.p)) { oxygenDeath(); return; }
-    // The hanger holds air only if it was entered through its air lock
-    // (BASIC 830 → 1700)
-    if (GS.p === 38 && GS.r !== 39) { oxygenDeath(); return; }
-  }
-
-  // ── 6. Blown seal when the hanger is entered from the corridor (BASIC 3590)
+  // ── 7. Blown seal when the hanger is entered from the corridor (BASIC 3590)
   if (GS.p === 38 && GS.r === 29 && GS.f9 === 0) {
     GS.f9 = 1;
     printOutput('You have just blown the air seal of the space station!', 'msg-warn');
     printOutput('The station is now losing pressure. Oxygen is required everywhere.', 'msg-warn');
   }
 
-  // ── 7. Display location ────────────────────────────────────────────────────
+  // ── 8. Print oxygen status to transcript ──────────────────────────────────
   if (GS.f0 === 1) {
     printOutput('Oxygen remaining: ' + GS.t2 + ' minutes.', 'msg-system');
   }
 
-  printOutput('Present location:', 'msg-location-hdr');
-  const row = GS.m[GS.p];
-  for (let i = row[6]; i <= row[7]; i++) {
-    if (T[i]) printOutput(T[i], 'msg-location');
-  }
+  // ── 9. Add brief room entry line to transcript history ────────────────────
+  printOutput('\u2192 ' + (LOC_NAME[GS.p] || 'Location ' + GS.p), 'msg-room');
   printHR();
 
-  // ── 8. Handle overlook: auto-drop illuminator ──────────────────────────────
+  // ── 10. Handle overlook: auto-drop illuminator ────────────────────────────
   if (GS.p === 2 && carrying(4)) {
     GS.o[4] = 100; // lost forever (location 100 = off-map)
     GS.c--;
@@ -312,14 +362,7 @@ function beginTurn() {
     printOutput('You cannot retrieve it.', 'msg-warn');
   }
 
-  // ── 9. Display items at location ──────────────────────────────────────────
-  for (let i = 1; i <= 14; i++) {
-    if (GS.o[i] === GS.p) {
-      printOutput('There is ' + ITEM_NAME[i] + ' here.', 'msg-item');
-    }
-  }
-
-  // ── 10. Robot logic ────────────────────────────────────────────────────────
+  // ── 11. Robot logic ───────────────────────────────────────────────────────
   robotTick();
 
   updateUI();
@@ -369,13 +412,10 @@ function exposeDeactivator() {
   GS.f5 = 1;
   // Place deactivator at loc 14 (dark area east of Posidonius)
   GS.o[6] = 14;
-  // Open west exit from loc 14 → loc 2 (so the player can get back out)
-  GS.m[14][3] = 2;
   // The darkness lifts: drop the final "total darkness" line of locs 2 and 14
-  // (BASIC 3760/3770 set M(2,8)=M(2,7) and M(14,8)=M(14,7))
   GS.m[2][7]  = GS.m[2][7] - 1;   // loc 2 keeps its first two lines
   GS.m[14][7] = GS.m[14][6];      // loc 14 keeps "Somewhere east of Mare Serenitatis."
-  printOutput('[A faint signal from the east has been detected.]', 'msg-system');
+  printOutput('[Station sensors have detected a signal from the eastern surface.]', 'msg-system');
 }
 
 function bombDetonation() {
@@ -530,6 +570,13 @@ function cmdMove(dirIdx) {
     return;
   }
 
+  // Dark room (loc 14): always return to whichever room the player entered from
+  // when going west, regardless of the hardcoded matrix value.
+  if (GS.p === 14 && dirIdx === 3) {
+    doMove(GS.r);
+    return;
+  }
+
   doMove(dest);
 }
 
@@ -560,8 +607,8 @@ function cmdGet(input) {
   if (i === 5)  { printOutput("You can't carry a robot!", 'msg-warn'); return; }
   if (i === 10) { printOutput("You can't get the message; it's on the terminal screen.", 'msg-warn'); return; }
 
-  // Carry limit: 6 items max (BASIC: c > 3)
-  if (GS.c >= 6) { printOutput("You can't carry any more!", 'msg-warn'); return; }
+  // Carry limit (configurable by difficulty)
+  if (GS.c >= cfg.maxItems) { printOutput("You can't carry any more!", 'msg-warn'); return; }
 
   // Power supply: can only carry one at a time
   if (i === 11) {
@@ -632,14 +679,13 @@ function cmdInventory() {
 }
 
 /**
- * LOOK / DESCRIBE / WAIT — re-display the current location.
- * In the BASIC these commands jump back to line 650, i.e. they cost a turn
- * exactly like a move. Keeping that behaviour also gives the player a way to
- * wait, which matters at location 14 where every exit is fatal until the
- * deactivator is exposed.
+ * LOOK / DESCRIBE — re-display the current location.
+ * This is FREE — it does not advance time, drain oxygen, or consume power.
  */
 function cmdLook() {
-  beginTurn();
+  updateLocationPanel();
+  printOutput('[Location redisplayed]', 'msg-system');
+  updateUI();
 }
 
 /** TRANSPORT (from transporter room, loc 36) */
@@ -785,7 +831,7 @@ const DIR_MAP = {
   e: 2, east:  2,
   w: 3, west:  3,
   u: 4, up:    4,
-  d: 5, down:  5,
+  d: 5, down:  5, dn: 5,
 };
 
 function processInput(rawInput) {
@@ -871,8 +917,11 @@ function processInput(rawInput) {
   // Inventory
   if (verb3 === 'inv') { cmdInventory(); return; }
 
-  // Look / describe / wait — all cost a turn, exactly as in the BASIC
-  if (verb3 === 'loo' || verb3 === 'des' || verb3 === 'wai') { cmdLook(); return; }
+  // Look / describe — FREE: redisplay current location without costing a turn
+  if (verb3 === 'loo' || verb3 === 'des') { cmdLook(); return; }
+
+  // Wait — costs a full turn (time passes, resources drain); useful at loc 14
+  if (verb3 === 'wai') { beginTurn(); return; }
 
   // Transport
   if (verb3 === 'tra' && input.length <= 9) { cmdTransport(); return; }
@@ -913,10 +962,10 @@ function showInstructions() {
   printOutput('You have crash landed on the moon.', 'msg-normal');
   printOutput('You have limited supplies and time in which to survive.', 'msg-normal');
   printBlank();
-  printOutput('MOVEMENT: Type N, S, E, W, U, D  —or—  NORTH, SOUTH, etc.', 'msg-normal');
+  printOutput('MOVEMENT: Type N, S, E, W, U, D, DN  —or—  NORTH, SOUTH, etc.', 'msg-normal');
   printOutput('ACTIONS : GET <item>, DROP <item>, INVENTORY', 'msg-normal');
   printOutput('SPECIAL : DIG, FUEL, READ <computer>, DEACTIVATE, BLAST,', 'msg-normal');
-  printOutput('          TRANSPORT, LOOK, WAIT  (LOOK and WAIT cost a turn)', 'msg-normal');
+  printOutput('          TRANSPORT, LOOK, WAIT  (LOOK is free; WAIT costs a turn)', 'msg-normal');
   printOutput('OBSTACLE: When prompted, type  USE <item>  or  TRY <item>', 'msg-normal');
   printBlank();
   printOutput('Commands may be abbreviated to their first 3 letters.', 'msg-normal');
@@ -926,10 +975,65 @@ function showInstructions() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SETTINGS PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+
+function showSettings() {
+  const overlay = document.getElementById('settings-overlay');
+  if (!overlay) return;
+
+  // Populate fields with current cfg values
+  const oxyField   = document.getElementById('cfg-oxygen');
+  const pwrField   = document.getElementById('cfg-power');
+  const pckField   = document.getElementById('cfg-pack');
+  const itmField   = document.getElementById('cfg-items');
+  if (oxyField) oxyField.value = cfg.startOxygen;
+  if (pwrField) pwrField.value = cfg.startPower;
+  if (pckField) pckField.value = cfg.startPack;
+  if (itmField) itmField.value = cfg.maxItems;
+
+  // Highlight the matching difficulty button
+  document.querySelectorAll('.diff-btn').forEach(btn => {
+    const preset = DIFFICULTY_PRESETS[btn.dataset.diff];
+    const isActive = preset &&
+      preset.startOxygen === cfg.startOxygen &&
+      preset.startPower  === cfg.startPower  &&
+      preset.startPack   === cfg.startPack   &&
+      preset.maxItems    === cfg.maxItems;
+    btn.classList.toggle('diff-active', !!isActive);
+  });
+
+  overlay.style.display = 'flex';
+}
+
+function hideSettings() {
+  const overlay = document.getElementById('settings-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function applySettingsFromPanel() {
+  const oxyField = document.getElementById('cfg-oxygen');
+  const pwrField = document.getElementById('cfg-power');
+  const pckField = document.getElementById('cfg-pack');
+  const itmField = document.getElementById('cfg-items');
+
+  cfg.startOxygen = Math.max(10, parseInt(oxyField ? oxyField.value : cfg.startOxygen, 10) || cfg.startOxygen);
+  cfg.startPower  = Math.max(10, parseInt(pwrField ? pwrField.value : cfg.startPower,  10) || cfg.startPower);
+  cfg.startPack   = Math.max(10, parseInt(pckField ? pckField.value : cfg.startPack,   10) || cfg.startPack);
+  cfg.maxItems    = Math.max(2,  parseInt(itmField ? itmField.value : cfg.maxItems,    10) || cfg.maxItems);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // RESTART
 // ─────────────────────────────────────────────────────────────────────────────
 
 function restartGame() {
+  showSettings();
+}
+
+function startGame() {
+  applySettingsFromPanel();
+  hideSettings();
   elTranscript.innerHTML = '';
   initGame();
   showInstructions();
@@ -976,6 +1080,11 @@ window.addEventListener('load', () => {
   elLocation      = document.getElementById('hud-location');
   elInventoryList = document.getElementById('inventory-list');
   elRoomList      = document.getElementById('room-items-list');
+  elLocName       = document.getElementById('loc-name');
+  elLocDesc       = document.getElementById('loc-description');
+  elLocItems      = document.getElementById('loc-items');
+  elLocExits      = document.getElementById('loc-exits');
+  elLocRes        = document.getElementById('loc-resources');
 
   // Direction buttons
   document.querySelectorAll('.dir-btn').forEach(btn => {
@@ -1011,10 +1120,44 @@ window.addEventListener('load', () => {
   const btnRestart = document.getElementById('btn-restart');
   if (btnRestart) btnRestart.addEventListener('click', restartGame);
 
+  // Settings panel: difficulty preset buttons
+  const DIFF_DESCRIPTIONS = {
+    easy:     'Easy: more oxygen (300 min), more power, larger inventory (8 items). Good for exploring.',
+    standard: 'Standard: balanced oxygen, power, and inventory — matching the original game with modest improvements.',
+    difficult:'Difficult: limited oxygen (100 min), tight power supplies, small inventory (4 items). For veterans only.',
+  };
+
+  document.querySelectorAll('.diff-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = DIFFICULTY_PRESETS[btn.dataset.diff];
+      if (!preset) return;
+      cfg = Object.assign({}, preset);
+      // Sync fields
+      const oxyField = document.getElementById('cfg-oxygen');
+      const pwrField = document.getElementById('cfg-power');
+      const pckField = document.getElementById('cfg-pack');
+      const itmField = document.getElementById('cfg-items');
+      if (oxyField) oxyField.value = cfg.startOxygen;
+      if (pwrField) pwrField.value = cfg.startPower;
+      if (pckField) pckField.value = cfg.startPack;
+      if (itmField) itmField.value = cfg.maxItems;
+      // Update description
+      const descEl = document.getElementById('diff-desc');
+      if (descEl) descEl.textContent = DIFF_DESCRIPTIONS[btn.dataset.diff] || '';
+      // Highlight active
+      document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('diff-active'));
+      btn.classList.add('diff-active');
+    });
+  });
+
+  // Settings panel: Start Game button
+  const btnStartGame = document.getElementById('btn-start-game');
+  if (btnStartGame) btnStartGame.addEventListener('click', startGame);
+
   // Command input
   elInput.addEventListener('keydown', handleKeyDown);
 
-  // Start the game
+  // Show settings panel on first load (auto-selects Standard)
   restartGame();
   elInput.focus();
 });
