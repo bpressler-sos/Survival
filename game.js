@@ -36,9 +36,9 @@ function initGame() {
     p:  1,      // current location
     r:  1,      // previous location
     t1: 0,      // elapsed time (minutes) — incremented BEFORE display
-    t2: 105,    // oxygen remaining (minutes)
+    t2: 205,    // oxygen remaining (minutes)
     p1: 230,    // power unit charge
-    p2: 50,     // power pack charge
+    p2: 150,    // power pack charge
     v:  0,      // computer terminal reads
     c:  2,      // items carried  (starts 2: oxygen module + power unit)
 
