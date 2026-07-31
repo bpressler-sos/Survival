@@ -71,6 +71,7 @@ function initGame() {
     m: M_INIT.map(r => r ? r.slice() : null), // movement matrix (mutable)
 
     obstacle: null,  // pending obstacle: { requiredItem, onSuccess, onFail }
+    alert:    null,  // message shown in the location panel: { lines, cls }
     gameOver: false,
     won:      false,
 
@@ -83,9 +84,9 @@ function initGame() {
 // DOM REFERENCES
 // ─────────────────────────────────────────────────────────────────────────────
 
-let elTranscript, elInput, elO2, elPower, elTime, elLocation,
-    elInventoryList, elRoomList, elDirButtons,
-    elLocName, elLocDesc, elLocItems, elLocExits, elLocRes;
+let elTranscript, elInput, elO2, elPower, elPowerLabel, elTime, elLocation,
+    elInventoryList, elDirButtons,
+    elLocName, elLocDesc, elLocItems, elLocExits, elLocRes, elLocAlert;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OUTPUT HELPERS
@@ -117,36 +118,62 @@ function printHR() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// LOCATION ALERTS  (messages shown inside the Current Location box)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Show lines as an alert inside the location panel (below the description). */
+function setLocAlert(lines, cls) {
+  GS.alert = { lines: Array.isArray(lines) ? lines : [lines], cls: cls || 'msg-warn' };
+  updateLocationPanel();
+}
+
+/** Remove any alert currently shown in the location panel. */
+function clearLocAlert() {
+  GS.alert = null;
+  updateLocationPanel();
+}
+
+/** Print lines to the history AND show them as an alert in the location panel. */
+function announce(lines, cls) {
+  const list = Array.isArray(lines) ? lines : [lines];
+  list.forEach(line => printOutput(line, cls || 'msg-warn'));
+  setLocAlert(list, cls);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // HUD & SIDEBAR UPDATES
 // ─────────────────────────────────────────────────────────────────────────────
 
 function updateHUD() {
   // Oxygen
   if (GS.f0 === 1) {
-    elO2.textContent = 'O\u2082: ' + GS.t2 + ' min';
+    elO2.textContent = GS.t2 + ' min';
     elO2.classList.toggle('hud-warn', GS.t2 <= 20);
   } else {
-    elO2.textContent = 'O\u2082: ---';
+    elO2.textContent = '---';
     elO2.classList.remove('hud-warn');
   }
 
   // Power
   if (GS.o[11] === 99) {
-    elPower.textContent = 'PWR: ' + GS.p1 + 'u';
+    if (elPowerLabel) elPowerLabel.textContent = 'PWR';
+    elPower.textContent = GS.p1 + 'u';
     elPower.classList.toggle('hud-warn', GS.p1 <= 30);
   } else if (GS.o[14] === 99) {
-    elPower.textContent = 'PKT: ' + GS.p2 + 'u';
+    if (elPowerLabel) elPowerLabel.textContent = 'PKT';
+    elPower.textContent = GS.p2 + 'u';
     elPower.classList.toggle('hud-warn', GS.p2 <= 10);
   } else {
-    elPower.textContent = 'PWR: ---';
+    if (elPowerLabel) elPowerLabel.textContent = 'PWR';
+    elPower.textContent = '---';
     elPower.classList.remove('hud-warn');
   }
 
   // Time
-  elTime.textContent = 'TIME: ' + GS.t1 + ' min';
+  elTime.textContent = GS.t1 + ' min';
 
-  // Location
-  elLocation.textContent = LOC_NAME[GS.p] || ('Loc ' + GS.p);
+  // Location (optional element — the location box normally shows this)
+  if (elLocation) elLocation.textContent = LOC_NAME[GS.p] || ('Loc ' + GS.p);
 }
 
 function updateDirButtons() {
@@ -182,36 +209,10 @@ function updateInventory() {
   if (cap) cap.textContent = count + ' / ' + cfg.maxItems + ' items';
 }
 
-function updateRoomItems() {
-  elRoomList.innerHTML = '';
-  for (let i = 1; i <= 14; i++) {
-    if (GS.o[i] === GS.p) {
-      const li = document.createElement('li');
-      li.className = 'item-entry';
-      li.textContent = ITEM_NAME[i];
-      // Items that cannot be picked up
-      if (i === 5) {
-        li.title = 'A robot (cannot carry)';
-        li.classList.add('item-noget');
-      } else if (i === 10) {
-        li.title = 'Read the computer message (use READ command)';
-        li.classList.add('item-noget');
-      } else {
-        li.title = 'Take ' + ITEM_NAME[i];
-        li.addEventListener('click', () => {
-          if (!GS.gameOver && !GS.obstacle) processInput('get ' + ITEM_NAME[i].replace(/^(an?|the)\s+/i, ''));
-        });
-      }
-      elRoomList.appendChild(li);
-    }
-  }
-}
-
 function updateUI() {
   updateHUD();
   updateDirButtons();
   updateInventory();
-  updateRoomItems();
   updateLocationPanel();
 }
 
@@ -241,15 +242,50 @@ function updateLocationPanel() {
     }
   }
 
+  // Alert message for what is happening right here
+  if (elLocAlert) {
+    elLocAlert.innerHTML = '';
+    elLocAlert.className = 'loc-alert';
+    if (GS.alert && GS.alert.lines.length) {
+      elLocAlert.classList.add(GS.alert.cls || 'msg-warn');
+      GS.alert.lines.forEach(line => {
+        const d = document.createElement('div');
+        d.textContent = line;
+        elLocAlert.appendChild(d);
+      });
+    }
+  }
+
   // Items present
   elLocItems.innerHTML = '';
+  let itemsHere = 0;
   for (let i = 1; i <= 14; i++) {
     if (GS.o[i] === GS.p) {
+      itemsHere++;
       const d = document.createElement('div');
       d.className = 'loc-item';
       d.textContent = '\u25b6 ' + ITEM_NAME[i];
+      if (i === 5) {
+        d.title = 'A robot (cannot carry)';
+        d.classList.add('item-noget');
+      } else if (i === 10) {
+        d.title = 'Read the computer message (use READ command)';
+        d.classList.add('item-noget');
+      } else {
+        d.title = 'Take ' + ITEM_NAME[i];
+        d.classList.add('item-get');
+        d.addEventListener('click', () => {
+          if (!GS.gameOver && !GS.obstacle) processInput('get ' + ITEM_NAME[i].replace(/^(an?|the)\s+/i, ''));
+        });
+      }
       elLocItems.appendChild(d);
     }
+  }
+  if (!itemsHere) {
+    const d = document.createElement('div');
+    d.className = 'loc-item loc-item-none';
+    d.textContent = 'nothing here';
+    elLocItems.appendChild(d);
   }
 
   // Available exits
@@ -300,6 +336,8 @@ function carrying(i) { return GS.o[i] === 99; }
 // ─────────────────────────────────────────────────────────────────────────────
 
 function beginTurn() {
+  GS.alert = null;
+
   // ── 1. Print elapsed time and resource levels to transcript ───────────────
   printBlank();
   printOutput('Elapsed time: ' + GS.t1 + ' minutes.', 'msg-system');
@@ -343,8 +381,10 @@ function beginTurn() {
   // ── 7. Blown seal when the hanger is entered from the corridor (BASIC 3590)
   if (GS.p === 38 && GS.r === 29 && GS.f9 === 0) {
     GS.f9 = 1;
-    printOutput('You have just blown the air seal of the space station!', 'msg-warn');
-    printOutput('The station is now losing pressure. Oxygen is required everywhere.', 'msg-warn');
+    announce([
+      'You have just blown the air seal of the space station!',
+      'The station is now losing pressure. Oxygen is required everywhere.',
+    ], 'msg-warn');
   }
 
   // ── 8. Print oxygen status to transcript ──────────────────────────────────
@@ -360,8 +400,10 @@ function beginTurn() {
   if (GS.p === 2 && carrying(4)) {
     GS.o[4] = 100; // lost forever (location 100 = off-map)
     GS.c--;
-    printOutput('You dropped your illuminator over the edge!', 'msg-warn');
-    printOutput('You cannot retrieve it.', 'msg-warn');
+    announce([
+      'You dropped your illuminator over the edge!',
+      'You cannot retrieve it.',
+    ], 'msg-warn');
   }
 
   // ── 11. Robot logic ───────────────────────────────────────────────────────
@@ -448,6 +490,10 @@ function oxygenDeath() {
 function gameDeath(extraMsg) {
   if (extraMsg) printOutput(extraMsg, 'msg-bad');
   printOutput('You have failed to survive.', 'msg-bad');
+  GS.alert = {
+    lines: (extraMsg ? [extraMsg] : []).concat(['You have failed to survive.', 'Press RESTART to try again.']),
+    cls: 'msg-bad',
+  };
   GS.gameOver = true;
   updateUI();
   printBlank();
@@ -460,6 +506,11 @@ function gameWin() {
   printOutput('Congratulations! You have just blasted off', 'msg-good');
   printOutput('and are on your way to Earth.', 'msg-good');
   printOutput('Your escape time: ' + GS.t1 + ' minutes.', 'msg-good');
+  GS.alert = {
+    lines: ['Congratulations! You have escaped the moon.',
+            'Your escape time: ' + GS.t1 + ' minutes.'],
+    cls: 'msg-good',
+  };
   printBlank();
   printOutput('Press RESTART to play again.', 'msg-system');
   updateUI();
@@ -489,9 +540,11 @@ function cmdMove(dirIdx) {
 
   // Meteor shower: leaving loc 12 going west to loc 13
   if (GS.p === 12 && dest === 13 && GS.f2 === 0) {
-    printOutput('There is a meteor shower.', 'msg-warn');
-    printOutput('Your space suit has developed a leak...', 'msg-warn');
-    printOutput('Try to seal it with something you carry. (Use: USE SEALANT)', 'msg-warn');
+    announce([
+      'There is a meteor shower.',
+      'Your space suit has developed a leak...',
+      'Try to seal it with something you carry. (Use: USE SEALANT)',
+    ], 'msg-warn');
     GS.obstacle = {
       requiredItem: 2,
       onSuccess: () => {
@@ -509,8 +562,10 @@ function cmdMove(dirIdx) {
 
   // Locked shed: leaving loc 13 going west to loc 22
   if (GS.p === 13 && dest === 22 && GS.f1 === 0) {
-    printOutput('The shed is locked!', 'msg-warn');
-    printOutput('You need something to open it. (Use: USE KEY)', 'msg-warn');
+    announce([
+      'The shed is locked!',
+      'You need something to open it. (Use: USE KEY)',
+    ], 'msg-warn');
     GS.obstacle = {
       requiredItem: 1,
       onSuccess: () => {
@@ -529,8 +584,10 @@ function cmdMove(dirIdx) {
 
   // Dark ventilator shaft: leaving loc 22 going down to loc 23
   if (GS.p === 22 && dest === 23 && GS.f4 === 0) {
-    printOutput('It is dangerous to proceed in the dark.', 'msg-warn');
-    printOutput('You need a light source. (Use: USE ILLUMINATOR)', 'msg-warn');
+    announce([
+      'It is dangerous to proceed in the dark.',
+      'You need a light source. (Use: USE ILLUMINATOR)',
+    ], 'msg-warn');
     GS.obstacle = {
       requiredItem: 4,
       onSuccess: () => {
@@ -555,8 +612,10 @@ function cmdMove(dirIdx) {
 
   // Laser beam: leaving loc 29 going west to loc 37
   if (GS.p === 29 && dest === 37 && GS.f3 === 0) {
-    printOutput('There is a laser beam here. Passage is not possible with the beam present.', 'msg-warn');
-    printOutput('You need something to deflect it. (Use: USE MIRROR)', 'msg-warn');
+    announce([
+      'There is a laser beam here. Passage is not possible with the beam present.',
+      'You need something to deflect it. (Use: USE MIRROR)',
+    ], 'msg-warn');
     GS.obstacle = {
       requiredItem: 12,
       onSuccess: () => {
@@ -842,6 +901,9 @@ function processInput(rawInput) {
   const input = rawInput.trim().toLowerCase();
   if (!input) return;
 
+  // A new command supersedes whatever alert was showing in the location panel
+  clearLocAlert();
+
   // ── Save to history ────────────────────────────────────────────────────────
   if (GS.inputHistory[GS.inputHistory.length - 1] !== rawInput) {
     GS.inputHistory.push(rawInput);
@@ -1079,15 +1141,16 @@ window.addEventListener('load', () => {
   elInput         = document.getElementById('command-input');
   elO2            = document.getElementById('hud-oxygen');
   elPower         = document.getElementById('hud-power');
+  elPowerLabel    = document.getElementById('hud-power-label');
   elTime          = document.getElementById('hud-moves');
   elLocation      = document.getElementById('hud-location');
   elInventoryList = document.getElementById('inventory-list');
-  elRoomList      = document.getElementById('room-items-list');
   elLocName       = document.getElementById('loc-name');
   elLocDesc       = document.getElementById('loc-description');
   elLocItems      = document.getElementById('loc-items');
   elLocExits      = document.getElementById('loc-exits');
   elLocRes        = document.getElementById('loc-resources');
+  elLocAlert      = document.getElementById('loc-alert');
 
   // Direction buttons
   document.querySelectorAll('.dir-btn').forEach(btn => {
