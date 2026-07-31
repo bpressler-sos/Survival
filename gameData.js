@@ -99,12 +99,6 @@ const T = [
 //   Columns 6-7 : first/last T[] index for this location's text description
 //
 // Corrections vs. BASIC OCR:
-//   • Self-loop exits (e.g. loc16 S=16) replaced with 0
-//   • Loc 2  : T=4-5  (2-line overlook; "darkness" line belongs to loc 3)
-//   • Loc 3  : T=6-7  (2-line dark area description)
-//   • Loc 21 : T=36-37 (control room; OCR had 37-38)
-//   • Locs 22-42: T values each decreased by 1 (OCR systematic +1 shift)
-//   • Loc 29 S=38  (reciprocal of loc 38 N=29; dead code otherwise)
 //   • Loc 32 T2=47 (OCR had corrupt value 40)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -112,8 +106,8 @@ const T = [
 const M_INIT = [
   null,              //  0  (unused)
   [ 7,  4,  2, 15,  0,  0,  1,  3],  //  1 Mare Serenitatis
-  [ 9,  3, 14,  1,  0,  0,  4,  5],  //  2 Overlook at Posidonius  (T fix: 4-5)
-  [ 2,  5, 14,  4,  0,  0,  6,  7],  //  3 Darkness east           (T fix: 6-7)
+  [ 9,  3, 14,  1,  0,  0,  4,  6],  //  2 Overlook at Posidonius
+  [ 2,  5, 14,  4,  0,  0,  7,  7],  //  3 Darkness east
   [ 1,  5,  3,  0,  0,  0,  8,  8],  //  4 Pass in Haemus
   [ 4,  0,  3,  6,  0,  0,  9,  9],  //  5 Base of Manilus
   [ 0,  0,  5,  0,  0,  0, 10, 11],  //  6 Mare Vaporum (dead end, illuminator here)
@@ -126,33 +120,33 @@ const M_INIT = [
   [ 0, 16, 12, 22,  0,  0, 27, 28],  // 13 Locked shed entrance
   [99, 99, 99, 99,  0,  0, 29, 30],  // 14 Dark area east (all exits=death initially)
   [11, 18,  1,  0,  0,  0, 31, 32],  // 15 Spacecraft crash site
-  [17,  0,  7,  0,  0,  0, 33, 33],  // 16 Ship airlock 1  (self-loops → 0)
-  [16,  0, 11,  0,  0,  0, 33, 33],  // 17 Ship airlock 2  (self-loops → 0)
+  [17, 16,  7, 16,  0,  0, 33, 33],  // 16 Ship airlock 1  
+  [16, 17, 11, 17,  0,  0, 33, 33],  // 17 Ship airlock 2  
   [15, 19,  0,  0,  0,  0, 34, 34],  // 18 Aft cargo / fuel storage
   [18,  0, 20,  0,  0,  0, 35, 35],  // 19 Engine room
   [ 0,  0,  0, 19, 21,  0, 36, 36],  // 20 Lower spacecraft section
-  [ 0,  0,  0,  0,  0, 20, 36, 37],  // 21 Control room  (T fix: 36-37)
-  [ 0,  0, 13,  0,  0, 23, 38, 39],  // 22 Shed interior  (T-1: 38-39)
-  [24,  0,  0,  0, 22,  0, 40, 40],  // 23 Ventilator shaft  (T-1: 40)
-  [25, 23,  0,  0,  0,  0, 41, 42],  // 24 Ventilator opening  (T-1: 41-42)
-  [27, 26, 33, 32, 24,  0, 43, 43],  // 25 Station corridor  (T-1: 43)
-  [25,  0, 30, 31,  0,  0, 43, 43],  // 26 Station corridor  (T-1: 43)
-  [34, 25, 41,  0,  0,  0, 43, 43],  // 27 Station corridor  (T-1: 43)
-  [ 0, 29, 42, 36,  0,  0, 43, 43],  // 28 Station corridor  (T-1: 43; N opened by robot)
-  [28, 38, 40, 37,  0,  0, 43, 43],  // 29 Station corridor  (T-1: 43; S fix: 38)
-  [ 0,  0,  0, 26,  0,  0, 44, 44],  // 30 Infirmary  (T-1: 44)
-  [ 0,  0, 26,  0,  0,  0, 45, 45],  // 31 Recreation room  (T-1: 45)
-  [ 0,  0, 25,  0,  0,  0, 46, 47],  // 32 Mess hall  (T fix: 46-47)
-  [ 0,  0,  0, 25,  0,  0, 49, 49],  // 33 Sleeping quarters  (T-1: 49)
-  [ 0, 27,  0,  0,  0,  0, 48, 48],  // 34 Storage room  (T-1: 48)
-  [ 0, 28,  0,  0, 24,  0, 52, 52],  // 35 Station control center  (T-1: 52)
-  [ 0,  0, 28,  0,  0,  0, 53, 53],  // 36 Transporter room  (T-1: 53)
-  [ 0,  0, 29,  0,  0,  0, 54, 54],  // 37 Laboratory  (T-1: 54)
-  [29,  0, 39,  0,  0,  0, 55, 56],  // 38 Hanger area  (T-1: 55-56; needs O₂!)
-  [40,  0,  0, 38,  0,  0, 57, 58],  // 39 Airlock (changing↔hanger)  (T-1: 57-58)
-  [ 0, 39,  0, 29,  0,  0, 59, 59],  // 40 Space suit changing area  (T-1: 59)
-  [ 0,  0,  0, 27, 42,  0, 50, 50],  // 41 Elevator – subsurface  (T-1: 50)
-  [ 0,  0,  0, 28,  0, 41, 51, 51],  // 42 Elevator – surface  (T-1: 51)
+  [ 0,  0,  0,  0,  0, 20, 37, 38],  // 21 Control room  
+  [ 0,  0, 13,  0,  0, 23, 39, 40],  // 22 Shed interior 
+  [24,  0,  0,  0, 22,  0, 41, 41],  // 23 Ventilator shaft 
+  [25, 23,  0,  0,  0,  0, 42, 43],  // 24 Ventilator opening
+  [27, 26, 33, 32, 24,  0, 44, 44],  // 25 Station corridor
+  [25,  0, 30, 31,  0,  0, 44, 44],  // 26 Station corridor
+  [34, 25, 41,  0,  0,  0, 44, 44],  // 27 Station corridor
+  [ 0, 29, 42, 36,  0,  0, 44, 44],  // 28 Station corridor
+  [28, 30, 40, 37,  0,  0, 44, 44],  // 29 Station corridor
+  [ 0,  0,  0, 26,  0,  0, 45, 45],  // 30 Infirmary
+  [ 0,  0, 26,  0,  0,  0, 46, 46],  // 31 Recreation room
+  [ 0,  0, 25,  0,  0,  0, 47, 48],  // 32 Mess hall
+  [ 0,  0,  0, 25,  0,  0, 50, 50],  // 33 Sleeping quarters  
+  [ 0, 27,  0,  0,  0,  0, 49, 49],  // 34 Storage room  
+  [ 0, 28,  0,  0, 24,  0, 53, 53],  // 35 Station control center  
+  [ 0,  0, 28,  0,  0,  0, 54, 54],  // 36 Transporter room  
+  [ 0,  0, 29,  0,  0,  0, 55, 55],  // 37 Laboratory  
+  [29,  0, 39,  0,  0,  0, 56, 57],  // 38 Hanger area 
+  [40,  0,  0, 38,  0,  0, 58, 59],  // 39 Airlock (changing↔hanger)  
+  [ 0, 39,  0, 29,  0,  0, 60, 60],  // 40 Space suit changing area  
+  [ 0,  0,  0, 27, 42,  0, 51, 51],  // 41 Elevator – subsurface  
+  [ 0,  0,  0, 28,  0, 41, 52, 52],  // 42 Elevator – surface  
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
