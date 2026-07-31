@@ -114,3 +114,4 @@ and `docs/Survival BASIC Code - Big Computer Games Version.txt`.
 | 10 | A failed attempt at the locked shed left the game stuck in "obstacle" mode | An obstacle now always resolves after one attempt; the shed simply stays locked |
 | 11 | `TRANSPORT` only worked from the transporter room | Works in both directions (BASIC lines 1750–1820) |
 | 12 | `DEACTIVATE` moved the bomb into the inventory and could exceed the carry limit | The bomb may be carried or simply present; it is left where it is |
+| 13 | The ventilator opening (24) led *north* into corridor 25, but the corridor led back *up* (25 U = 24), so going back the way you came was impossible; pressing south walked the player deeper into the station and into the robot | The opening now drops *down* into corridor 25, matching the corridor's ladder up (and location 35's up exit to 24) |
