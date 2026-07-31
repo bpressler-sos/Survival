@@ -8,9 +8,53 @@
 </head>
 <body>
 
+<!-- ═══════════════════════════════════════════ SETTINGS OVERLAY ══ -->
+<div id="settings-overlay">
+  <div id="settings-panel">
+    <div class="settings-title">SURVIVAL — GAME CONFIGURATION</div>
+    <div class="settings-subtitle">Settings cannot be changed once the game begins.</div>
+
+    <div class="settings-section">
+      <div class="settings-label">DIFFICULTY:</div>
+      <div class="diff-btn-row">
+        <button class="diff-btn" data-diff="easy">EASY</button>
+        <button class="diff-btn diff-active" data-diff="standard">STANDARD</button>
+        <button class="diff-btn" data-diff="difficult">DIFFICULT</button>
+      </div>
+      <div class="diff-desc" id="diff-desc">
+        Standard: balanced oxygen, power, and inventory — matching the original game with modest improvements.
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-label">FINE-TUNE PARAMETERS:</div>
+      <div class="settings-fields">
+        <div class="settings-row">
+          <label for="cfg-oxygen" class="settings-field-label">Starting Oxygen (min):</label>
+          <input type="number" id="cfg-oxygen" class="settings-input" value="205" min="10" max="999">
+        </div>
+        <div class="settings-row">
+          <label for="cfg-power"  class="settings-field-label">Power Unit charge:</label>
+          <input type="number" id="cfg-power"  class="settings-input" value="230" min="10" max="999">
+        </div>
+        <div class="settings-row">
+          <label for="cfg-pack"   class="settings-field-label">Power Pack charge:</label>
+          <input type="number" id="cfg-pack"   class="settings-input" value="150" min="10" max="999">
+        </div>
+        <div class="settings-row">
+          <label for="cfg-items"  class="settings-field-label">Max inventory items:</label>
+          <input type="number" id="cfg-items"  class="settings-input" value="6"   min="2" max="14">
+        </div>
+      </div>
+    </div>
+
+    <button id="btn-start-game" class="sys-btn settings-start-btn">▶ START GAME</button>
+  </div>
+</div>
+
 <div id="game-container">
 
-  <!-- ═══════════════════════════════════════════════════ HUD ══ -->
+  <!-- ═══════════════════════════════════════════════════════ HUD ══ -->
   <header id="hud">
     <div id="hud-title">SURVIVAL</div>
 
@@ -28,40 +72,55 @@
     <button id="btn-restart" class="sys-btn" title="Restart Game">RESTART</button>
   </header>
 
-  <!-- ═══════════════════════════════════════════════ MAIN AREA ══ -->
+  <!-- ═══════════════════════════════════════════════════ MAIN AREA ══ -->
   <div id="main-area">
 
-    <!-- ─────────────────────────── TRANSCRIPT ── -->
-    <div id="transcript-wrap">
-      <div id="transcript" role="log" aria-live="polite" aria-label="Game output"></div>
+    <!-- ─────────────────────────── LEFT COLUMN ── -->
+    <div id="left-column">
 
-      <!-- Quick-action buttons sit above the input line -->
-      <div id="quick-actions">
-        <span class="qa-label">QUICK:</span>
-        <button id="btn-look" class="qa-btn" title="Look around current location">LOOK</button>
-        <button id="btn-inv"  class="qa-btn" title="Show inventory">INV</button>
-        <button id="btn-take" class="qa-btn" title="Pick up an item from the room">TAKE</button>
-        <button id="btn-use"  class="qa-btn" title="Use an item (for obstacles)">USE</button>
-        <button id="btn-drop" class="qa-btn" title="Drop an item from your inventory">DROP</button>
+      <!-- ── Current location panel (fixed, always visible) ── -->
+      <div id="location-panel">
+        <div id="loc-name" class="loc-name">---</div>
+        <div id="loc-description" class="loc-description"></div>
+        <div id="loc-items" class="loc-items"></div>
+        <div id="loc-exits" class="loc-exits">Exits: ---</div>
+        <div id="loc-resources" class="loc-resources"></div>
       </div>
 
-      <!-- Command input -->
-      <div id="input-area">
-        <span id="input-prompt">&gt;</span>
-        <input
-          type="text"
-          id="command-input"
-          autocomplete="off"
-          autocorrect="off"
-          autocapitalize="off"
-          spellcheck="false"
-          aria-label="Command input"
-          placeholder="type a command or use the buttons…"
-        >
-      </div>
-    </div><!-- /transcript-wrap -->
+      <!-- ── History / transcript ── -->
+      <div id="transcript-wrap">
+        <div class="transcript-heading">HISTORY</div>
+        <div id="transcript" role="log" aria-live="polite" aria-label="Game output"></div>
 
-    <!-- ─────────────────────────────── SIDEBAR ── -->
+        <!-- Quick-action buttons sit above the input line -->
+        <div id="quick-actions">
+          <span class="qa-label">QUICK:</span>
+          <button id="btn-look" class="qa-btn" title="Look around current location">LOOK</button>
+          <button id="btn-inv"  class="qa-btn" title="Show inventory">INV</button>
+          <button id="btn-take" class="qa-btn" title="Pick up an item from the room">TAKE</button>
+          <button id="btn-use"  class="qa-btn" title="Use an item (for obstacles)">USE</button>
+          <button id="btn-drop" class="qa-btn" title="Drop an item from your inventory">DROP</button>
+        </div>
+
+        <!-- Command input -->
+        <div id="input-area">
+          <span id="input-prompt">&gt;</span>
+          <input
+            type="text"
+            id="command-input"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            aria-label="Command input"
+            placeholder="type a command or use the buttons…"
+          >
+        </div>
+      </div><!-- /transcript-wrap -->
+
+    </div><!-- /left-column -->
+
+    <!-- ─────────────────────────────────── SIDEBAR ── -->
     <aside id="sidebar">
 
       <!-- Direction pad -->
@@ -91,7 +150,7 @@
       <!-- Inventory -->
       <section id="inventory-panel" aria-label="Inventory">
         <div class="panel-heading">INVENTORY</div>
-        <div id="inv-capacity" class="inv-capacity">0 / 4 items</div>
+        <div id="inv-capacity" class="inv-capacity">0 / 6 items</div>
         <ul id="inventory-list" class="item-list"></ul>
       </section>
 

@@ -36,7 +36,7 @@ const T = [
   '',  // [0] unused
   /* 1 */ 'At Mare Serenitatis. Long eerie shadows',
   /* 2 */ 'from distant mountains and craters cast',
-  /* 3 */ 'themselves across the barren landscape.',
+  /* 3 */ 'themselves across the barren landscape. You can see the wreckage of your spacecraft to the west.',
   /* 4 */ 'On a promontory point on the rim of the',
   /* 5 */ 'crater Posidonius, only half visible.',
   /* 6 */ 'There is total darkness to the east,',

@@ -114,8 +114,8 @@ html, body {
   overflow: hidden;
 }
 
-/* ── Transcript wrap (left column) ────────────────────────────────────────── */
-#transcript-wrap {
+/* ── Left column (location panel + transcript) ────────────────────────────── */
+#left-column {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -123,10 +123,76 @@ html, body {
   border-right: 1px solid var(--border);
 }
 
+/* ── Current location panel (fixed / non-scrolling) ──────────────────────── */
+#location-panel {
+  flex-shrink: 0;
+  padding: 10px 14px 8px;
+  background: #030f03;
+  border-bottom: 2px solid var(--border);
+}
+
+.loc-name {
+  font-size: 1em;
+  font-weight: bold;
+  color: var(--cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+
+.loc-description {
+  color: var(--fg);
+  font-size: 0.9em;
+  margin-bottom: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.loc-items {
+  color: #aaddaa;
+  font-size: 0.88em;
+  margin-bottom: 3px;
+}
+
+.loc-item {
+  color: #aaddaa;
+}
+
+.loc-exits {
+  color: var(--green-dim);
+  font-size: 0.85em;
+  letter-spacing: 0.05em;
+  margin-bottom: 3px;
+}
+
+.loc-resources {
+  color: var(--green);
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+}
+
+/* ── Transcript wrap ──────────────────────────────────────────────────────── */
+#transcript-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.transcript-heading {
+  flex-shrink: 0;
+  padding: 3px 14px;
+  font-size: 0.75em;
+  color: var(--green-dim);
+  letter-spacing: 0.12em;
+  background: #050f05;
+  border-bottom: 1px solid #1a2e1a;
+}
+
 #transcript {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 14px;
+  padding: 8px 14px;
   background: var(--bg);
 }
 
@@ -362,6 +428,129 @@ html, body {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.2; }
 }
+
+/* ── Settings overlay ──────────────────────────────────────────────────────── */
+#settings-overlay {
+  display: flex;            /* shown by default; game.js hides it to start */
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+
+#settings-panel {
+  background: #040f04;
+  border: 1px solid var(--border);
+  padding: 24px 28px;
+  max-width: 480px;
+  width: 90%;
+  font-family: var(--font-mono);
+}
+
+.settings-title {
+  color: var(--green);
+  font-size: 1.1em;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  margin-bottom: 4px;
+}
+
+.settings-subtitle {
+  color: var(--green-dim);
+  font-size: 0.8em;
+  margin-bottom: 16px;
+  font-style: italic;
+}
+
+.settings-section {
+  margin-bottom: 16px;
+}
+
+.settings-label {
+  color: var(--green);
+  font-size: 0.82em;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+
+/* Difficulty buttons */
+.diff-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.diff-btn {
+  flex: 1;
+  padding: 6px 4px;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid #336633;
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+}
+.diff-btn:hover   { background: #0a1a0a; border-color: var(--green); color: var(--green); }
+.diff-btn.diff-active {
+  background: #0d1a0d;
+  border-color: var(--green);
+  color: var(--green);
+  font-weight: bold;
+}
+
+.diff-desc {
+  color: var(--green-dim);
+  font-size: 0.78em;
+  font-style: italic;
+  min-height: 2.4em;
+}
+
+/* Fine-tune fields */
+.settings-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-field-label {
+  color: var(--fg);
+  font-size: 0.82em;
+  flex: 1;
+}
+
+.settings-input {
+  width: 72px;
+  padding: 3px 6px;
+  background: #0a0a0a;
+  border: 1px solid #336633;
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  text-align: right;
+}
+.settings-input:focus { outline: none; border-color: var(--green); }
+
+/* Start Game button */
+.settings-start-btn {
+  display: block;
+  width: 100%;
+  margin-top: 20px;
+  padding: 8px;
+  font-size: 1em;
+  letter-spacing: 0.15em;
+  color: var(--green);
+  border-color: var(--green);
+}
+.settings-start-btn:hover { background: #0d1a0d; }
 
 /* ── Responsive: narrow screens ────────────────────────────────────────────── */
 @media (max-width: 600px) {
