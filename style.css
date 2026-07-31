@@ -186,7 +186,7 @@ body {
 /* Move pad / inventory / items-here live inside the location box */
 #loc-panels {
   display: grid;
-  grid-template-columns: 160px 1fr 1fr;
+  grid-template-columns: 1fr 190px 1fr;
   gap: 10px;
   padding-top: 8px;
   border-top: 1px solid #1a2e1a;
@@ -361,9 +361,9 @@ body {
 }
 .dir-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 3px;
-  max-width: 120px;
+  max-width: 160px;
   margin: 8px auto 0;
 }
 .dir-btn {
@@ -578,7 +578,7 @@ body {
   #loc-panels {
     grid-template-columns: 1fr 1fr;
   }
-  #direction-pad { grid-column: 1 / -1; }
+  #inventory-panel { grid-column: 1 / -1; }
 }
 
 @media (max-width: 420px) {

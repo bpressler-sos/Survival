@@ -63,8 +63,8 @@ Commands may be abbreviated to their first three letters.
 
 - Drop the oxygen module while you are inside the ship or the station: it only
   drains while it is carried.
-- The overlook at Posidonius will make you lose the illuminator — leave it
-  elsewhere before going there.
+- The illuminator is needed to navigate the shaft, so keep it with you once you
+  have picked it up.
 - The hangar is safe when it is entered through its air lock (changing area →
   air lock → hangar). Walking into it straight from the corridor blows the
   station air seal, and from then on oxygen is needed everywhere.
