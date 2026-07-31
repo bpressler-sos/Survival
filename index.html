@@ -86,35 +86,6 @@
       <!-- Movement / inventory / room items all live with the current state -->
       <div id="loc-panels">
 
-        <!-- Direction pad -->
-        <section id="direction-pad" aria-label="Movement controls">
-          <div class="panel-heading">MOVE</div>
-          <div class="dir-grid">
-            <div class="dir-corner"></div>
-            <button id="btn-n" class="dir-btn" data-dir="n" aria-label="North">N</button>
-            <div class="dir-corner"></div>
-
-            <button id="btn-w" class="dir-btn" data-dir="w" aria-label="West">W</button>
-            <div class="dir-center">&#x2022;</div>
-            <button id="btn-e" class="dir-btn" data-dir="e" aria-label="East">E</button>
-
-            <div class="dir-corner"></div>
-            <button id="btn-s" class="dir-btn" data-dir="s" aria-label="South">S</button>
-            <div class="dir-corner"></div>
-
-            <button id="btn-u" class="dir-btn dir-ud" data-dir="u" aria-label="Up">UP</button>
-            <div class="dir-corner"></div>
-            <button id="btn-d" class="dir-btn dir-ud" data-dir="d" aria-label="Down">DN</button>
-          </div>
-        </section>
-
-        <!-- Inventory -->
-        <section id="inventory-panel" aria-label="Inventory">
-          <div class="panel-heading">INVENTORY</div>
-          <div id="inv-capacity" class="inv-capacity">0 / 6 items</div>
-          <ul id="inventory-list" class="item-list"></ul>
-        </section>
-
         <!-- Vitals -->
         <section id="vitals-panel" aria-label="Vitals">
           <div class="panel-heading">VITALS</div>
@@ -132,6 +103,34 @@
               <span id="hud-power" class="hud-stat">---</span>
             </li>
           </ul>
+        </section>
+
+        <!-- Direction pad -->
+        <section id="direction-pad" aria-label="Movement controls">
+          <div class="panel-heading">MOVE</div>
+          <div class="dir-grid">
+            <div class="dir-corner"></div>
+            <button id="btn-n" class="dir-btn" data-dir="n" aria-label="North">N</button>
+            <div class="dir-corner"></div>
+            <button id="btn-u" class="dir-btn dir-ud" data-dir="u" aria-label="Up">UP</button>
+
+            <button id="btn-w" class="dir-btn" data-dir="w" aria-label="West">W</button>
+            <div class="dir-center">&#x2022;</div>
+            <button id="btn-e" class="dir-btn" data-dir="e" aria-label="East">E</button>
+            <div class="dir-corner"></div>
+
+            <div class="dir-corner"></div>
+            <button id="btn-s" class="dir-btn" data-dir="s" aria-label="South">S</button>
+            <div class="dir-corner"></div>
+            <button id="btn-d" class="dir-btn dir-ud" data-dir="d" aria-label="Down">DN</button>
+          </div>
+        </section>
+
+        <!-- Inventory -->
+        <section id="inventory-panel" aria-label="Inventory">
+          <div class="panel-heading">INVENTORY</div>
+          <div id="inv-capacity" class="inv-capacity">0 / 6 items</div>
+          <ul id="inventory-list" class="item-list"></ul>
         </section>
 
       </div><!-- /loc-panels -->

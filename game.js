@@ -396,17 +396,7 @@ function beginTurn() {
   printOutput('\u2192 ' + (LOC_NAME[GS.p] || 'Location ' + GS.p), 'msg-room');
   printHR();
 
-  // ── 10. Handle overlook: auto-drop illuminator ────────────────────────────
-  if (GS.p === 2 && carrying(4)) {
-    GS.o[4] = 100; // lost forever (location 100 = off-map)
-    GS.c--;
-    announce([
-      'You dropped your illuminator over the edge!',
-      'You cannot retrieve it.',
-    ], 'msg-warn');
-  }
-
-  // ── 11. Robot logic ───────────────────────────────────────────────────────
+  // ── 10. Robot logic ───────────────────────────────────────────────────────
   robotTick();
 
   updateUI();
