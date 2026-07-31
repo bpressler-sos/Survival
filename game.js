@@ -17,9 +17,11 @@
  *
  * ── Obstacle mechanic ───────────────────────────────────────────────────────
  *  When a movement encounters a locked/dangerous barrier the engine sets
- *  GS.obstacle = { requiredItem, onSuccess, onFail }.
- *  The *next* player input is intercepted: "use/try <item>" with the right
- *  item calls onSuccess; wrong item / fatal barriers call onFail.
+ *  GS.obstacle = { requiredItem, onSuccess, onFail }, mirroring the BASIC
+ *  "TRY/USE" subroutine at line 4890. The *next* player input is intercepted:
+ *  "use/try <item>" with the right item calls onSuccess, anything else calls
+ *  onFail. Obstacle mode always ends after one attempt, so the player can
+ *  never be trapped in it.
  */
 
 'use strict';
@@ -239,12 +241,19 @@ function beginTurn() {
 
   // ── 2. Advance time and drain resources ────────────────────────────────────
   GS.t1 += 5;
-  if (carrying(11) && GS.p1 > 0) GS.p1 -= 5;
-  if (carrying(14) && GS.p2 > 0) GS.p2 -= 5;
+  // BASIC 690/700 drain a supply only while it holds more than 5 units, so a
+  // small reserve always remains. Draining to exactly 0 (as the Big Computer
+  // Games listing does) makes the game unwinnable, because the spare power
+  // pack sits behind the laser deep inside the space station.
+  if (carrying(11) && GS.p1 > 5) GS.p1 -= 5;
+  if (carrying(14) && GS.p2 > 5) GS.p2 -= 5;
 
-  // ── 3. Check power failure ─────────────────────────────────────────────────
-  if (carrying(11) && GS.p1 === 0) { powerFailure(); return; }
-  if (carrying(14) && GS.p2 === 0) { powerFailure(); return; }
+  // ── 3. Check power failure (BASIC 710/720 → 3680) ─────────────────────────
+  // Running out of power is only fatal where warmth is needed: on the surface
+  // and in the wrecked ship (p < 22), or anywhere once the seal is blown.
+  if ((carrying(11) && GS.p1 === 0) || (carrying(14) && GS.p2 === 0)) {
+    if (powerFatal(GS.p, GS.f9)) { powerFailure(); return; }
+  }
 
   // ── 4. Timed world events ──────────────────────────────────────────────────
   if (GS.t1 > 400) { asteroidDeath(); return; }
@@ -258,37 +267,28 @@ function beginTurn() {
     exposeDeactivator();
   }
 
-  // ── 5. Oxygen drain and death checks ──────────────────────────────────────
+  // ── 5. Oxygen drain and death checks (BASIC 760-830) ──────────────────────
   if (GS.f0 === 1) {
     GS.t2 -= 5;
     if (GS.t2 < 0) GS.t2 = 0;
   }
 
-  // Check oxygen death conditions
-  if (GS.f0 === 0) {
-    // Not consuming oxygen (dropped oxygen module)
-    if (GS.f9 === 1) {
-      // Seal blown: all station locations now need oxygen
-      if (GS.p > 21) { oxygenDeath(); return; }
-    }
-    // Surface / hanger locations always require oxygen
+  // Breathing checks only matter when no oxygen is being consumed: either the
+  // module was dropped (f0 = 0) or the supply has run out.
+  if (GS.f0 === 0 || GS.t2 <= 0) {
+    // Seal blown: every station location needs oxygen (BASIC 800/810)
+    if (GS.f9 === 1 && GS.p > 21) { oxygenDeath(); return; }
+    // Moon surface always needs oxygen (BASIC 820)
     if (needsOxygen(GS.p)) { oxygenDeath(); return; }
-  } else {
-    // Consuming oxygen — check for depletion
-    if (GS.t2 <= 0) {
-      if (GS.f9 === 1) {
-        // Seal blown: entire station needs oxygen too
-        oxygenDeath(); return;
-      }
-      // Normal: die only if outside or in hanger
-      if (needsOxygen(GS.p)) { oxygenDeath(); return; }
-    }
+    // The hanger holds air only if it was entered through its air lock
+    // (BASIC 830 → 1700)
+    if (GS.p === 38 && GS.r !== 39) { oxygenDeath(); return; }
   }
 
-  // ── 6. Blown-seal notification on arrival at loc 38 ───────────────────────
+  // ── 6. Blown seal when the hanger is entered from the corridor (BASIC 3590)
   if (GS.p === 38 && GS.r === 29 && GS.f9 === 0) {
     GS.f9 = 1;
-    printOutput('You have just breached the air seal of the space station!', 'msg-warn');
+    printOutput('You have just blown the air seal of the space station!', 'msg-warn');
     printOutput('The station is now losing pressure. Oxygen is required everywhere.', 'msg-warn');
   }
 
@@ -369,11 +369,12 @@ function exposeDeactivator() {
   GS.f5 = 1;
   // Place deactivator at loc 14 (dark area east of Posidonius)
   GS.o[6] = 14;
-  // Open west exit from loc 14 → loc 2 (so player can escape)
+  // Open west exit from loc 14 → loc 2 (so the player can get back out)
   GS.m[14][3] = 2;
-  // Reduce loc 14's displayed text to just the first line (less ominous hint)
-  GS.m[14][7] = 29; // T1=29
-  GS.m[14][6] = 29; // T2=29  (shows: "Somewhere east of Mare Serenitatis.")
+  // The darkness lifts: drop the final "total darkness" line of locs 2 and 14
+  // (BASIC 3760/3770 set M(2,8)=M(2,7) and M(14,8)=M(14,7))
+  GS.m[2][7]  = GS.m[2][7] - 1;   // loc 2 keeps its first two lines
+  GS.m[14][7] = GS.m[14][6];      // loc 14 keeps "Somewhere east of Mare Serenitatis."
   printOutput('[A faint signal from the east has been detected.]', 'msg-system');
 }
 
@@ -477,9 +478,9 @@ function cmdMove(dirIdx) {
       },
       onFail: () => {
         printOutput('Your attempt fails.', 'msg-warn');
-        GS.obstacle = null; // non-fatal; player can try again
+        // Non-fatal: the shed stays locked and the player keeps playing
+        updateUI();
       },
-      nonFatal: true,
     };
     return;
   }
@@ -630,42 +631,44 @@ function cmdInventory() {
   if (!found) printOutput('You are carrying nothing.', 'msg-normal');
 }
 
-/** LOOK / DESCRIBE — re-display current location */
+/**
+ * LOOK / DESCRIBE / WAIT — re-display the current location.
+ * In the BASIC these commands jump back to line 650, i.e. they cost a turn
+ * exactly like a move. Keeping that behaviour also gives the player a way to
+ * wait, which matters at location 14 where every exit is fatal until the
+ * deactivator is exposed.
+ */
 function cmdLook() {
-  // Reprint location description without ticking the clock
-  printHR();
-  const row = GS.m[GS.p];
-  for (let i = row[6]; i <= row[7]; i++) {
-    if (T[i]) printOutput(T[i], 'msg-location');
-  }
-  printHR();
-  for (let i = 1; i <= 14; i++) {
-    if (GS.o[i] === GS.p) {
-      printOutput('There is ' + ITEM_NAME[i] + ' here.', 'msg-item');
-    }
-  }
-  updateUI();
+  beginTurn();
 }
 
 /** TRANSPORT (from transporter room, loc 36) */
 function cmdTransport() {
-  if (GS.p !== 36) {
-    printOutput("You can only transport from the transporter room.", 'msg-warn');
+  const unit = GS.o[8];
+
+  if (GS.p === 36) {
+    // In the transporter room: beam to wherever the unit was left
+    if (unit === 99) {
+      printOutput('You cannot beam to a unit you are carrying.', 'msg-warn');
+      return;
+    }
+    if (!unit || unit > 42) {
+      printOutput('The transporter has no destination locked in.', 'msg-warn');
+      return;
+    }
+    printOutput('Beaming in progress...', 'msg-good');
+    doMove(unit);
     return;
   }
-  if (carrying(8)) {
-    printOutput("You can't transport while carrying the transporter unit.", 'msg-warn');
+
+  // Standing at the unit: beam back to the transporter room
+  if (unit === GS.p) {
+    printOutput('Beaming in progress...', 'msg-good');
+    doMove(36);
     return;
   }
-  const dest = GS.o[8]; // teleport to wherever the transporter unit is
-  if (!dest || dest === 99 || dest > 42) {
-    printOutput('The transporter has no destination locked in.', 'msg-warn');
-    return;
-  }
-  printOutput('Beaming in progress...', 'msg-good');
-  GS.r = GS.p;
-  GS.p = dest;
-  beginTurn();
+
+  printOutput('I cannot process your request!', 'msg-warn');
 }
 
 /** DIG (at Burg Crater, loc 10) */
@@ -722,7 +725,6 @@ function cmdRead(input) {
     printOutput('STATION COMPUTER LOG:', 'msg-system');
     printOutput('Bomb deactivator located somewhere east of', 'msg-normal');
     printOutput('the space station, on the moon\'s surface.', 'msg-normal');
-    printOutput('Local fuel source: dilithium crystals.', 'msg-normal');
   } else if (GS.v === 1) {
     printOutput('STATION COMPUTER LOG:', 'msg-system');
     printOutput('Local fuel source: dilithium crystals.', 'msg-normal');
@@ -742,14 +744,16 @@ function cmdDeactivate() {
     printOutput('You have nothing to do it with!', 'msg-warn');
     return;
   }
-  // Bomb must be at current location (not required to carry it)
-  if (GS.o[7] !== GS.p) {
-    printOutput("There is no bomb here to deactivate.", 'msg-warn');
+  // The bomb must be carried or present in the room
+  if (GS.o[7] !== GS.p && !carrying(7)) {
+    printOutput("You can't do it from here!", 'msg-warn');
+    return;
+  }
+  if (GS.f7 === 1) {
+    printOutput('The bomb is already deactivated.', 'msg-warn');
     return;
   }
   GS.f7 = 1;
-  GS.o[7] = 99; // bomb now "in hand" / disarmed
-  GS.c++;
   printOutput('Bomb is now deactivated.', 'msg-good');
   updateUI();
 }
@@ -799,40 +803,32 @@ function processInput(rawInput) {
   // Echo the command
   printOutput('> ' + rawInput, 'msg-cmd');
 
-  // ── Obstacle mode: next input must be "use/try <item>" ────────────────────
+  // ── Obstacle mode: the next input must be "use/try <item>" ────────────────
+  // BASIC subroutine 4890: anything that is not TRY/USE <item you have>
+  // counts as a failed attempt. For fatal barriers a failure kills; for the
+  // locked shed the attempt simply fails and normal play resumes, so the
+  // player is never trapped in obstacle mode.
   if (GS.obstacle) {
     const obs = GS.obstacle;
     GS.obstacle = null;
 
     const verb3 = input.slice(0, 3);
+    let success = false;
+
     if (verb3 === 'use' || verb3 === 'try') {
       const i = parseItem(input);
       if (i < 1) {
-        printOutput("What item?", 'msg-warn');
-        GS.obstacle = obs; // stay in obstacle mode
-        return;
-      }
-      if (!carrying(i)) {
+        printOutput('Use what?', 'msg-warn');
+      } else if (!carrying(i)) {
         printOutput("You don't have " + ITEM_NAME[i] + '!', 'msg-warn');
-        if (obs.nonFatal) { GS.obstacle = obs; } else { obs.onFail(); }
-        return;
+      } else if (i === obs.requiredItem) {
+        success = true;
       }
-      if (i === obs.requiredItem) {
-        obs.onSuccess();
-      } else {
-        if (obs.nonFatal) {
-          printOutput('Your attempt fails.', 'msg-warn');
-          GS.obstacle = obs; // let them try again (non-fatal)
-        } else {
-          obs.onFail();
-        }
-      }
-    } else if (obs.nonFatal) {
-      // Non-fatal obstacle: other commands allowed, obstacle cleared
-      printOutput("The obstacle is still there. Try: USE <item>", 'msg-warn');
-      GS.obstacle = obs;
+    }
+
+    if (success) {
+      obs.onSuccess();
     } else {
-      // Fatal obstacle: anything other than use/try = death
       obs.onFail();
     }
     return;
@@ -875,8 +871,8 @@ function processInput(rawInput) {
   // Inventory
   if (verb3 === 'inv') { cmdInventory(); return; }
 
-  // Look
-  if (verb3 === 'loo' || verb3 === 'des') { cmdLook(); return; }
+  // Look / describe / wait — all cost a turn, exactly as in the BASIC
+  if (verb3 === 'loo' || verb3 === 'des' || verb3 === 'wai') { cmdLook(); return; }
 
   // Transport
   if (verb3 === 'tra' && input.length <= 9) { cmdTransport(); return; }
@@ -903,7 +899,7 @@ function processInput(rawInput) {
   }
 
   printOutput('Invalid command. Try: N S E W U D, GET, DROP, INVENTORY, LOOK,', 'msg-warn');
-  printOutput('TRANSPORT, DIG, FUEL, READ, DEACTIVATE, BLAST, or USE <item>.', 'msg-warn');
+  printOutput('WAIT, TRANSPORT, DIG, FUEL, READ, DEACTIVATE, BLAST, or USE <item>.', 'msg-warn');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -919,7 +915,8 @@ function showInstructions() {
   printBlank();
   printOutput('MOVEMENT: Type N, S, E, W, U, D  —or—  NORTH, SOUTH, etc.', 'msg-normal');
   printOutput('ACTIONS : GET <item>, DROP <item>, INVENTORY', 'msg-normal');
-  printOutput('SPECIAL : DIG, FUEL, READ <computer>, DEACTIVATE, BLAST', 'msg-normal');
+  printOutput('SPECIAL : DIG, FUEL, READ <computer>, DEACTIVATE, BLAST,', 'msg-normal');
+  printOutput('          TRANSPORT, LOOK, WAIT  (LOOK and WAIT cost a turn)', 'msg-normal');
   printOutput('OBSTACLE: When prompted, type  USE <item>  or  TRY <item>', 'msg-normal');
   printBlank();
   printOutput('Commands may be abbreviated to their first 3 letters.', 'msg-normal');
