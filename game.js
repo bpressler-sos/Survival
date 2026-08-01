@@ -133,11 +133,34 @@ function clearLocAlert() {
   updateLocationPanel();
 }
 
+/** Append lines to the alert currently shown in the location panel. */
+function addLocAlert(lines, cls) {
+  const list = Array.isArray(lines) ? lines : [lines];
+  if (GS.alert && GS.alert.lines.length) {
+    GS.alert.lines = GS.alert.lines.concat(list);
+    // A more severe class wins so deaths are not shown as ordinary messages.
+    if (cls && ALERT_SEVERITY(cls) > ALERT_SEVERITY(GS.alert.cls)) GS.alert.cls = cls;
+    updateLocationPanel();
+  } else {
+    setLocAlert(list, cls);
+  }
+}
+
+/** Relative severity of an alert class, used when several events share a turn. */
+function ALERT_SEVERITY(cls) {
+  switch (cls) {
+    case 'msg-bad':  return 3;
+    case 'msg-warn': return 2;
+    case 'msg-good': return 1;
+    default:         return 0;
+  }
+}
+
 /** Print lines to the history AND show them as an alert in the location panel. */
 function announce(lines, cls) {
   const list = Array.isArray(lines) ? lines : [lines];
   list.forEach(line => printOutput(line, cls || 'msg-warn'));
-  setLocAlert(list, cls);
+  addLocAlert(list, cls);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -429,10 +452,12 @@ function robotTick() {
     if (carrying(13)) {
       // Badge recognised: robot starts patrol, no attack
       GS.o[robot] = 25;
-      printOutput('The robot scans your coded badge and steps aside.', 'msg-normal');
+      announce('The robot scans your coded badge and steps aside.', 'msg-normal');
     } else {
-      printOutput('The robot fails to recognise you.', 'msg-warn');
-      printOutput('It fires a phasor weapon at you!', 'msg-warn');
+      announce([
+        'The robot fails to recognise you.',
+        'It fires a phasor weapon at you!',
+      ], 'msg-warn');
       gameDeath('You have been vaporised by the robot.');
     }
   }
@@ -449,27 +474,26 @@ function exposeDeactivator() {
   // The darkness lifts: drop the final "total darkness" line of locs 2 and 14
   GS.m[2][7]  = GS.m[2][7] - 1;   // loc 2 keeps its first two lines
   GS.m[14][7] = GS.m[14][6];      // loc 14 keeps "Somewhere east of Mare Serenitatis."
-  printOutput('[Station sensors have detected a signal from the eastern surface.]', 'msg-system');
+  announce('[Station sensors have detected a signal from the eastern surface.]', 'msg-system');
 }
 
 function bombDetonation() {
-  printOutput('A nuclear detonation has just occurred.', 'msg-bad');
+  announce('A nuclear detonation has just occurred.', 'msg-bad');
   gameDeath(null);
 }
 
 function asteroidDeath() {
-  printOutput('The moon base has just been destroyed by a large asteroid.', 'msg-bad');
+  announce('The moon base has just been destroyed by a large asteroid.', 'msg-bad');
   gameDeath(null);
 }
 
 function powerFailure() {
-  printOutput('You have no power or power pack.', 'msg-bad');
-  printOutput('You have frozen to death.', 'msg-bad');
+  announce(['You have no power or power pack.', 'You have frozen to death.'], 'msg-bad');
   gameDeath(null);
 }
 
 function oxygenDeath() {
-  printOutput('Oxygen required here. None available.', 'msg-bad');
+  announce('Oxygen required here. None available.', 'msg-bad');
   gameDeath(null);
 }
 
@@ -478,12 +502,8 @@ function oxygenDeath() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function gameDeath(extraMsg) {
-  if (extraMsg) printOutput(extraMsg, 'msg-bad');
-  printOutput('You have failed to survive.', 'msg-bad');
-  GS.alert = {
-    lines: (extraMsg ? [extraMsg] : []).concat(['You have failed to survive.', 'Press RESTART to try again.']),
-    cls: 'msg-bad',
-  };
+  announce((extraMsg ? [extraMsg] : []).concat(['You have failed to survive.']), 'msg-bad');
+  addLocAlert('Press RESTART to try again.', 'msg-bad');
   GS.gameOver = true;
   updateUI();
   printBlank();
@@ -496,11 +516,8 @@ function gameWin() {
   printOutput('Congratulations! You have just blasted off', 'msg-good');
   printOutput('and are on your way to Earth.', 'msg-good');
   printOutput('Your escape time: ' + GS.t1 + ' minutes.', 'msg-good');
-  GS.alert = {
-    lines: ['Congratulations! You have escaped the moon.',
-            'Your escape time: ' + GS.t1 + ' minutes.'],
-    cls: 'msg-good',
-  };
+  setLocAlert(['Congratulations! You have escaped the moon.',
+               'Your escape time: ' + GS.t1 + ' minutes.'], 'msg-good');
   printBlank();
   printOutput('Press RESTART to play again.', 'msg-system');
   updateUI();
@@ -521,7 +538,7 @@ function cmdMove(dirIdx) {
   }
 
   if (dest === 99) {
-    printOutput('You have fallen to your death.', 'msg-bad');
+    announce('You have fallen to your death.', 'msg-bad');
     gameDeath(null);
     return;
   }
@@ -538,12 +555,12 @@ function cmdMove(dirIdx) {
     GS.obstacle = {
       requiredItem: 2,
       onSuccess: () => {
-        printOutput('Your suit is now sealed.', 'msg-good');
+        announce('Your suit is now sealed.', 'msg-good');
         GS.f2 = 1;
         doMove(dest);
       },
       onFail: () => {
-        printOutput('Your suit loses pressure.', 'msg-bad');
+        announce('Your suit loses pressure.', 'msg-bad');
         gameDeath('You have suffocated.');
       },
     };
@@ -559,12 +576,12 @@ function cmdMove(dirIdx) {
     GS.obstacle = {
       requiredItem: 1,
       onSuccess: () => {
-        printOutput('You are in the shed air lock.', 'msg-good');
+        announce('You are in the shed air lock.', 'msg-good');
         GS.f1 = 1;
         doMove(dest);
       },
       onFail: () => {
-        printOutput('Your attempt fails.', 'msg-warn');
+        announce('Your attempt fails.', 'msg-warn');
         // Non-fatal: the shed stays locked and the player keeps playing
         updateUI();
       },
@@ -581,12 +598,12 @@ function cmdMove(dirIdx) {
     GS.obstacle = {
       requiredItem: 4,
       onSuccess: () => {
-        printOutput('The shaft is now illuminated.', 'msg-good');
+        announce('The shaft is now illuminated.', 'msg-good');
         GS.f4 = 1;
         doMove(dest);
       },
       onFail: () => {
-        printOutput('You plunge into the darkness.', 'msg-bad');
+        announce('You plunge into the darkness.', 'msg-bad');
         gameDeath('You have fallen to your death.');
       },
     };
@@ -595,7 +612,7 @@ function cmdMove(dirIdx) {
 
   // Shaft darkness check: any movement from loc 23 requires illuminator
   if (GS.p === 23 && !carrying(4)) {
-    printOutput('Without your illuminator you cannot navigate the shaft.', 'msg-bad');
+    announce('Without your illuminator you cannot navigate the shaft.', 'msg-bad');
     gameDeath('You have fallen to your death.');
     return;
   }
@@ -609,12 +626,12 @@ function cmdMove(dirIdx) {
     GS.obstacle = {
       requiredItem: 12,
       onSuccess: () => {
-        printOutput('The beam is now deflected.', 'msg-good');
+        announce('The beam is now deflected.', 'msg-good');
         GS.f3 = 1;
         doMove(dest);
       },
       onFail: () => {
-        printOutput('You have been zapped by the laser.', 'msg-bad');
+        announce('You have been zapped by the laser.', 'msg-bad');
         gameDeath(null);
       },
     };
@@ -696,14 +713,14 @@ function cmdDrop(input) {
   // Dropping a power supply on the surface or with blown seal = death
   if (i === 11 || i === 14) {
     if (needsPower(GS.p)) {
-      printOutput('You need power here! You cannot drop your power supply.', 'msg-warn');
-      printOutput('You have frozen to death.', 'msg-bad');
+      announce(['You need power here! You cannot drop your power supply.',
+                'You have frozen to death.'], 'msg-bad');
       gameDeath(null);
       return;
     }
     if (GS.f9 === 1) {
-      printOutput('The station requires power with the seal blown.', 'msg-warn');
-      printOutput('You have frozen to death.', 'msg-bad');
+      announce(['The station requires power with the seal blown.',
+                'You have frozen to death.'], 'msg-bad');
       gameDeath(null);
       return;
     }
